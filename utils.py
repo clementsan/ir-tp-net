@@ -48,8 +48,7 @@ def imshow(inp, title=None):
 	print('imshow inp.shape: ',inp.shape)
 
 	fig = plt.subplots()
-	#plt.imshow(inp, cmap='gray')
-	plt.imshow(inp)
+	plt.imshow(inp,cmap='gray')
 	if title is not None:
 		plt.title(title)
 	plt.pause(0.001)  # pause a bit so that plots are updated

@@ -38,7 +38,7 @@ CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
 # Batch size
-bs = 400 # default = 16
+bs = 2000 
 # Image size
 sz1 = 15
 sz2 = 1
@@ -52,7 +52,7 @@ nb_epochs2 = 30
 
 # --------
 # Device for CUDA (pytorch 0.4.0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def main():
@@ -90,6 +90,8 @@ def main():
 	Subjects_dataset_train = tio.SubjectsDataset(Subjects_list_train, transform=TIOtransform)
 	Subjects_dataset_test = tio.SubjectsDataset(Subjects_list_test, transform=None)
 
+	print('Training set:', len(Subjects_dataset_train), 'subjects')
+	print('Validation set:', len(Subjects_dataset_test), 'subjects')
 
 	time_elapsed = time.time() - since
 	print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
@@ -97,38 +99,57 @@ def main():
 
 
 	# ------------------
+	# Subject visualization
+	print('\n--- Subject Info... ---')
+	MySubject = Subjects_dataset_train[0]
+	print('MySubject: ',MySubject)
+	print('MySubject.shape: ',MySubject.shape)
+	print('MySubject.spacing: ',MySubject.spacing)
+	print('MySubject.spatial_shape: ',MySubject.spatial_shape)
+	print('MySubject history: ',MySubject.get_composed_history())
+
+	# ------------------
+
+
+	# ------------------
 	# Patch-based pipeline...
 	patch_size = (15,15,122)
-	queue_length = 1200
-	samples_per_volume = 200 # 62*78 # 4836
-	sampler_train = tio.data.UniformSampler(patch_size=patch_size)
-	sampler_test = tio.data.UniformSampler(patch_size=patch_size)
+	queue_length = 62*78*6 # 29016
+	samples_per_volume = 62*78 # 62*78 # 4836
+	sampler_train = tio.data.GridSampler(patch_size=patch_size)
+	sampler_test = tio.data.GridSampler(patch_size=patch_size)
 
 	patches_queue_train = tio.Queue(
-		Subjects_dataset_train,
-		queue_length,
-		samples_per_volume,
-		sampler_train,
-		num_workers=4,
+		subjects_dataset = Subjects_dataset_train,
+		max_length = queue_length,
+		samples_per_volume = samples_per_volume,
+		sampler = sampler_train,
+		num_workers = 6, #4
+		shuffle_subjects = True,
+		shuffle_patches = True,
 	)
 	patches_queue_test = tio.Queue(
-		Subjects_dataset_test,
-		queue_length,
-		samples_per_volume,
-		sampler_test,
-		num_workers=4,
+		subjects_dataset = Subjects_dataset_test,
+		max_length = queue_length,
+		samples_per_volume = samples_per_volume,
+		sampler = sampler_test,
+		num_workers = 6, #4
+		shuffle_subjects = True,
+		shuffle_patches = True,
 	)
 	
 	patches_loader_train = DataLoader(
 		patches_queue_train,
-		batch_size=bs,
-		num_workers=0,  # this must be 0
+		batch_size = bs,
+		#shuffle = False,
+		num_workers = 0,  # this must be 0
 	)
 
 	patches_loader_test = DataLoader(
 		patches_queue_test,
-		batch_size=bs,
-		num_workers=0,  # this must be 0
+		batch_size = bs,
+		#shuffle = False,
+		num_workers = 0,  # this must be 0
 	)
 
 	patches_loader_dict = {}
@@ -144,8 +165,8 @@ def main():
 
 	# # Get a batch of training data
 	#inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict1['train']))
-	print('\n\n --- Check Input sizes ---')
-	patches_batch = next(iter(patches_loader_dict['train']))
+	print('\n --- Check patch Input sizes ---')
+	patches_batch = next(iter(patches_loader_dict['val']))
 	inputs = patches_batch['Combined'][tio.DATA]
 	inputs1 = inputs[:,:,:,:,0:120]
 	inputs2 = inputs[:,:,:,:,-2]
@@ -164,29 +185,38 @@ def main():
 	print('GroundTruth_MaxPool.shape: ', GroundTruth_MaxPool.shape)
 
 
-	# # Make first grid from batch
-	# Grid_2DCorr = torchvision.utils.make_grid(inputs1, nrow=80, normalize=True)
-	# # # shape [3, 70, 70] 4 rows with 2-pixel padding
-	# print('\n imshow Grid_2DCorr shape: ', Grid_2DCorr.shape)
-	# utils.imshow(Grid_2DCorr, title="Data batch - 2DCorr")
+	# print('\n --- Plot first subject from batch ---')
+	# FirstInputs2 = inputs2[0,:,:,:]
+	# print('FirstInputs2.shape: ', FirstInputs2.shape)
+	# utils.imshow(FirstInputs2, title="First Case - TargetDisp")
+	# plt.show()
 
-	# # Tensorboard - add grid image
-	# writer.add_image('Grid_2DCorr', Grid_2DCorr)
-	#plt.show()
+	# FirstGroundTruth = GroundTruth[0,:,:,:]
+	# print('FirstGroundTruth.shape: ', FirstGroundTruth.shape)
+	# utils.imshow(FirstGroundTruth, title="First Case - GroundTruth")
+	# plt.show()
+
 
 	# Make first grid from batch
-	# Grid_TargetDisparity = torchvision.utils.make_grid(inputs2, nrow=80, normalize=True)
-	# # shape [3, 14, 14] 4 rows with 2-pixel padding
+	# print('\n --- Plot grid from batch ---')
+	# GridSize = 100
+
+	# Inputs2_ForGrid = inputs2[0:GridSize,:,:,:]
+	# print('Inputs2_ForGrid.shape: ', Inputs2_ForGrid.shape)
+	# print('Inputs2_ForGrid.type: ', Inputs2_ForGrid.dtype)
+	# Grid_TargetDisparity = torchvision.utils.make_grid(Inputs2_ForGrid, nrow = 10, normalize=True)
+	# # shape [3, 15, 15] 5x10 rows with 2-pixel padding
 	# print('\n imshow Grid_TargetDisparity shape: ', Grid_TargetDisparity.shape)
 	# utils.imshow(Grid_TargetDisparity, title="Data batch - Target disparity")
-	# #plt.show()
+	# plt.show()
 
 	# # Make second grid from batch
-	# Grid_GroundTruth = torchvision.utils.make_grid(inputs3, nrow=80, normalize=True)
-	# # shape [3, 14, 14] 4 rows with 2-pixel padding
+	# GroundTruth_ForGrid = GroundTruth[0:GridSize,:,:,:]
+	# Grid_GroundTruth = torchvision.utils.make_grid(GroundTruth_ForGrid, nrow = 10, normalize=True)
+	# # shape [3, 15, 15] 5x10 rows with 2-pixel padding
 	# print('\n imshow Grid_GroundTruth shape: ', Grid_GroundTruth.shape)
 	# utils.imshow(Grid_GroundTruth, title="Data batch - Ground Truth")
-	# #plt.show()
+	# plt.show()
 
 
 	######################################################################
@@ -215,9 +245,9 @@ def main():
 	print("Training...")
 	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr1, nb_epochs=nb_epochs1)
 	
-	# ----------------------
-	# Evaluate on validation data
-	model_ft.test_model(dataloaders=patches_loader_dict)
+	# # ----------------------
+	# # Evaluate on validation data
+	# model_ft.test_model(dataloaders=patches_loader_dict)
 
 
 	plt.ioff()

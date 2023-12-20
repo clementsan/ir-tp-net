@@ -20,7 +20,7 @@ import sys
 import os
 import copy
 
-from dataset import CustomImageDataset
+from dataset import CustomImageDataset, CustomImageDatasetTIO
 from torch.utils.data import DataLoader
 
 ######################################################################
@@ -51,7 +51,7 @@ nb_epochs2 = 30
 
 # --------
 # Device for CUDA (pytorch 0.4.0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
 def main():
@@ -125,10 +125,10 @@ def main():
 	# ---------
 	since = time.time()
 
-	training_data = CustomImageDataset(CSVFile_train,transform=data_transforms['train'], target_transform=data_transforms['GroundTruth'])
-	test_data = CustomImageDataset(CSVFile_val,transform=data_transforms['val'], target_transform=data_transforms['GroundTruth'])
-	train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=4)
-	test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=False, num_workers=4)
+	training_data = CustomImageDatasetTIO(CSVFile_train,transform=data_transforms['train'], target_transform=data_transforms['GroundTruth'])
+	test_data = CustomImageDatasetTIO(CSVFile_val,transform=data_transforms['val'], target_transform=data_transforms['GroundTruth'])
+	train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=1)
+	test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=False, num_workers=1)
 
 	dataloaders_dict1 = {}
 	dataloaders_dict1['train'] = train_dataloader
@@ -179,22 +179,24 @@ def main():
 	# default `log_dir` is "runs" - we'll be more specific here
 	writer = SummaryWriter('tensorboard/MyNetwork')
 
-	# Get a batch of training data
+	# # Get a batch of training data
 	inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict1['train']))
 	#print(inputs1)
 	#print(classes)
 	print('\n\n --- Check Input sizes ---')
-	print('inputs1.type: ', inputs1.type())
+	#print('inputs1.type: ', inputs1.type())
 	# torch.Size([16, 1, 15, 15])
 	print('inputs1.shape: ', inputs1.shape)
 
-	print('inputs2.type: ', inputs2.type())
+	#print('inputs2.type: ', inputs2.type())
 	# torch.Size([16, 1, 1, 1])
 	print('inputs2.shape: ', inputs2.shape)
 
-	print('GroundTruth.type: ', GroundTruth.type())
+	#print('GroundTruth.type: ', GroundTruth.type())
 	# torch.Size([16, 1, 1, 1])
 	print('GroundTruth.shape: ', GroundTruth.shape)
+
+
 
 	# # Make first grid from batch
 	# Grid_2DCorr = torchvision.utils.make_grid(inputs1, nrow=4, normalize=True)
@@ -245,7 +247,6 @@ def main():
 	print("\n")
 	print('-' * 20)
 	print("Training...")
-	
 	model_ft.train_model(dataloaders=dataloaders_dict1, lr=lr1, nb_epochs=nb_epochs1)
 	
 	# # ----------------------

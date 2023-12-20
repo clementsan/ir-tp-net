@@ -37,12 +37,12 @@ CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
 # Batch size
-bs = 16 # default = 16
+bs = 4 # default = 16
 # Image size
 sz1 = 15
 sz2 = 1
 # Learning rate
-lr1 = 1e-2
+lr1 = 1e-3
 lr2 = 1e-4
 # Number Epochs
 nb_epochs1 = 60
@@ -75,7 +75,7 @@ def main():
 				transforms.ToPILImage(),
 				#transforms.RandomRotation(5),
 				#transforms.ColorJitter(),
-				transforms.RandomHorizontalFlip(),
+				#transforms.RandomHorizontalFlip(),
 				#transforms.RandomVerticalFlip(),
 				#transforms.RandomResizedCrop(sz1),
 				transforms.CenterCrop(sz1),
@@ -85,7 +85,7 @@ def main():
 			]),
 			'input2': transforms.Compose([
 				transforms.ToPILImage(),
-				transforms.RandomHorizontalFlip(),
+				#transforms.RandomHorizontalFlip(),
 				transforms.CenterCrop(sz2),
 				#transforms.RandomCrop(sz2),
 				transforms.ToTensor(),
@@ -127,8 +127,8 @@ def main():
 
 	training_data = CustomImageDataset(CSVFile_train,transform=data_transforms['train'], target_transform=data_transforms['GroundTruth'])
 	test_data = CustomImageDataset(CSVFile_val,transform=data_transforms['val'], target_transform=data_transforms['GroundTruth'])
-	train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=1)
-	test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=True, num_workers=1)
+	train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=4)
+	test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=False, num_workers=4)
 
 	dataloaders_dict1 = {}
 	dataloaders_dict1['train'] = train_dataloader
@@ -150,25 +150,26 @@ def main():
 
 
 	# ---------
-	data_dict = {}
-	dataloaders_dict = {}	
+	# Initial implementation
+	# data_dict = {}
+	# dataloaders_dict = {}	
 
-	since = time.time()
-	for x in ['train', 'val']:
+	# since = time.time()
+	# for x in ['train', 'val']:
 
-		# CSV File
-		data_list = os.path.join( path, (CSVBaseName + x + '.csv'))
-		print(data_list)
-		data = utils.load_data(data_list, data_transforms[x], data_transforms['GroundTruth'])
-		print('\nlen(data)',len(data))
-		print('len(data[0])',len(data[0]))
-		#time.sleep(20)
+	# 	# CSV File
+	# 	data_list = os.path.join( path, (CSVBaseName + x + '.csv'))
+	# 	print(data_list)
+	# 	data = utils.load_data(data_list, data_transforms[x], data_transforms['GroundTruth'])
+	# 	print('\nlen(data)',len(data))
+	# 	print('len(data[0])',len(data[0]))
+	# 	#time.sleep(20)
 
-		data_dict[x] = data
-		dataloaders_dict[x] = torch.utils.data.DataLoader(data_dict[x], batch_size=bs, shuffle=True, num_workers=1)
+	# 	data_dict[x] = data
+	# 	dataloaders_dict[x] = torch.utils.data.DataLoader(data_dict[x], batch_size=bs, shuffle=True, num_workers=1)
 
-	time_elapsed = time.time() - since
-	print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
+	# time_elapsed = time.time() - since
+	# print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
 
 
 

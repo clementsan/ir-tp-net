@@ -5,6 +5,11 @@ import pandas as pd
 import imageio 
 import numpy as np
 
+
+import torch
+
+
+
 class MyData(Dataset):
 	def __init__(self, file_list):
 
@@ -80,6 +85,13 @@ class CustomImageDataset(Dataset):
 	def __len__(self):
 		return len(self.imGT_list)
 
+	def CropCenter(self,img, cropx=15, cropy=15):
+		z,y,x = img.shape
+		startx = x//2-(cropx//2)
+		starty = y//2-(cropy//2)   
+		
+		return img[:,starty:starty+cropy,startx:startx+cropx]
+
 	def __getitem__(self, idx):
 		img2DCorr_name = self.im2DCorr_list[idx]
 		imgTargetDisp_name = self.imTargetDisp_list[idx]
@@ -89,13 +101,16 @@ class CustomImageDataset(Dataset):
 		# imgTargetDisp = PILimage.open(imgTargetDisp_name, 'r')
 		# imgGT = PILimage.open(imgGT_name, 'r')
 		
-		# Read multi-layer file
-		#img2DCorr = imageio.mimread(img2DCorr_name,memtest=False)
+		# Read one-layer only - 2dcorr file
+		#img2DCorr = imageio.imread(img2DCorr_name)
+
+		# Read all layers - 2dcorr file
+		img2DCorr = imageio.mimread(img2DCorr_name,memtest=False)
 		#print(len(img2DCorr))
-		img2DCorr = imageio.imread(img2DCorr_name)
 		# Convert list to ndarray
-		#img2DCorr = np.array(img2DCorr)
+		img2DCorr = np.array(img2DCorr)
 		#print(img2DCorr.shape)
+
 		#img2DCorr = np.expand_dims(img2DCorr, axis=0)
 		#img2DCorr = np.moveaxis(img2DCorr, 0, 1)
 		#print(img2DCorr.shape)
@@ -112,8 +127,14 @@ class CustomImageDataset(Dataset):
 		#print('imgGT type: ', imgGT.dtype)
 		#print('imgGT shape: ', imgGT.shape)
 
+
+		#Special transform for input1 (multi-channel)
+		img2DCorr = self.CropCenter(img2DCorr, cropx=15, cropy=15)
+		#print(img2DCorr.shape)
+		img2DCorr = torch.from_numpy(img2DCorr)
+
 		if self.transform:
-			img2DCorr = self.transform['input1'](img2DCorr)
+			#img2DCorr = self.transform['input1'](img2DCorr)
 			imgTargetDisp = self.transform['input2'](imgTargetDisp)
 
 		if self.target_transform:

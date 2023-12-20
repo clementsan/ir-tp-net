@@ -16,14 +16,14 @@ class MyNetwork(nn.Module):
 		# Need to add batch normalization?
 		self.flatten1 = nn.Flatten()
 		self.flatten2 = nn.Flatten()
-		nb_input_features = 15*15 + 1 #226
-		self.fc1 = nn.Linear(nb_input_features, 100)
-		self.BN2 = torch.nn.BatchNorm1d(100)
+		nb_input_features = 120*15*15 + 1 #226
+		self.fc1 = nn.Linear(nb_input_features, 10000)
+		self.BN2 = torch.nn.BatchNorm1d(10000)
 		self.drop2 = nn.Dropout(p=0.5)
-		self.fc2 = nn.Linear(100, 50)
-		self.BN3 = torch.nn.BatchNorm1d(50)
+		self.fc2 = nn.Linear(10000, 500)
+		self.BN3 = torch.nn.BatchNorm1d(500)
 		self.drop3 = nn.Dropout(p=0.5)
-		self.fc3 = nn.Linear(50, 1)
+		self.fc3 = nn.Linear(500, 1)
 
 
 	def forward(self, x1, x2):

@@ -8,7 +8,11 @@ from torch.optim import lr_scheduler
 import torchvision
 from torchvision import datasets, models, transforms
 
-
+# FC network - 2 hidden layers
+#  - Max pool on input 2
+#  - Flatten inputs
+#  - Concatenate inputs
+#  - 2 hidden layers 
 class MyNetwork(nn.Module):
 	def __init__(self):
 		super(MyNetwork, self).__init__()
@@ -16,33 +20,108 @@ class MyNetwork(nn.Module):
 		# Need to add batch normalization?
 		self.flatten1 = nn.Flatten()
 		self.flatten2 = nn.Flatten()
-		nb_input_features = 120*15*15 + 1 #226
+		self.MaxPool2d = nn.MaxPool2d(15)
+		nb_input_features = 120*15*15 + 1 #27001
 		self.fc1 = nn.Linear(nb_input_features, 10000)
-		self.BN2 = torch.nn.BatchNorm1d(10000)
-		self.drop2 = nn.Dropout(p=0.5)
+		self.BN1 = torch.nn.BatchNorm1d(10000)
+		self.drop1 = nn.Dropout(p=0.5)
 		self.fc2 = nn.Linear(10000, 500)
-		self.BN3 = torch.nn.BatchNorm1d(500)
-		self.drop3 = nn.Dropout(p=0.5)
+		self.BN2 = torch.nn.BatchNorm1d(500)
+		self.drop2 = nn.Dropout(p=0.5)
 		self.fc3 = nn.Linear(500, 1)
 
 
 	def forward(self, x1, x2):
 		x1 = self.flatten1(x1)
+		x2 = self.MaxPool2d(x2)
 		x2 = self.flatten2(x2)
 		x = torch.cat((x1,x2),1)
 
 		x = self.fc1(x)
 		x = F.relu(x)
-		x = self.BN2(x)
-		x = self.drop2(x)
+		x = self.BN1(x)
+		x = self.drop1(x)
 		x = self.fc2(x)
 		x = F.relu(x)
-		x = self.BN3(x)
-		x = self.drop3(x)
+		x = self.BN2(x)
+		x = self.drop2(x)
 		out = self.fc3(x)
 	
 		return out
 
+
+# FC network - 4 hidden layers
+#  - Max pool on input 2
+#  - Flatten inputs
+#  - Concatenate inputs
+#  - 4 hidden layers 
+class MyNetwork2(nn.Module):
+	def __init__(self):
+		super(MyNetwork2, self).__init__()
+		
+		# Need to add batch normalization?
+		self.flatten1 = nn.Flatten()
+		self.flatten2 = nn.Flatten()
+		self.MaxPool2d = nn.MaxPool2d(15)
+
+		nb_input_features = 120*15*15 + 1 #27001
+		self.fc1 = nn.Linear(nb_input_features, 10000)
+		self.BN1 = torch.nn.BatchNorm1d(10000)
+		self.drop1 = nn.Dropout(p=0.25)
+
+		self.fc2 = nn.Linear(10000, 5000)
+		self.BN2 = torch.nn.BatchNorm1d(5000)
+		self.drop2 = nn.Dropout(p=0.25)
+
+		self.fc3 = nn.Linear(5000, 1000)
+		self.BN3 = torch.nn.BatchNorm1d(1000)
+		self.drop3 = nn.Dropout(p=0.25)
+
+		self.fc4 = nn.Linear(1000, 500)
+		self.BN4 = torch.nn.BatchNorm1d(500)
+		self.drop4 = nn.Dropout(p=0.25)
+
+		self.fc5 = nn.Linear(500, 100)
+		self.BN5 = torch.nn.BatchNorm1d(100)
+		self.drop5 = nn.Dropout(p=0.25)
+
+		self.fc6 = nn.Linear(100, 1)
+
+
+	def forward(self, x1, x2):
+		x1 = self.flatten1(x1)
+		x2 = self.MaxPool2d(x2)
+		x2 = self.flatten2(x2)
+		x = torch.cat((x1,x2),1)
+
+		x = self.fc1(x)
+		x = F.relu(x)
+		x = self.BN1(x)
+		#x = self.drop1(x)
+
+		x = self.fc2(x)
+		x = F.relu(x)
+		x = self.BN2(x)
+		#x = self.drop2(x)
+
+		x = self.fc3(x)
+		x = F.relu(x)
+		x = self.BN3(x)
+		#x = self.drop3(x)
+
+		x = self.fc4(x)
+		x = F.relu(x)
+		x = self.BN4(x)
+		#x = self.drop4(x)
+
+		x = self.fc5(x)
+		x = F.relu(x)
+		x = self.BN5(x)
+		x = self.drop5(x)
+
+		out = self.fc6(x)
+	
+		return out
 
 
 # Network similar to fastAI (with shared weights)

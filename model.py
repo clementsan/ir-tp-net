@@ -13,6 +13,7 @@ import os
 import copy
 import time
 import matplotlib.pyplot as plt
+import torchio as tio
 #from torchsummmary import summary
 
 #from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
@@ -33,7 +34,7 @@ class Model(object):
 	def create_model(self):
 		
 		# Fully Connected network
-		self.model = MyNetwork()
+		self.model = MyNetwork2()
 		print(self.model)
 
 		# Attach to device
@@ -81,10 +82,24 @@ class Model(object):
 				#running_corrects = 0
 
 				# Iterate over data.
-				for inputs1, inputs2, GroundTruth in dataloaders[phase]:
+				#for inputs1, inputs2, GroundTruth in dataloaders[phase]:
+				for patch_idx, patches_batch in enumerate(dataloaders[phase]):
+					print('\t patch_idx: ', patch_idx)
+					inputs = patches_batch['Combined'][tio.DATA]
+					inputs1 = inputs[:,:,:,:,0:120]
+					inputs2 = inputs[:,:,:,:,-2]
+					GroundTruth = inputs[:,:,:,:,-1]
+					#print('\t\t inputs.shape: ', inputs.shape)
+
 					inputs1 = inputs1.to(self.device)
 					inputs2 = inputs2.to(self.device)
 					GroundTruth = GroundTruth.to(self.device)
+					#print('\t\t GroundTruth.shape: ', GroundTruth.shape)
+
+					# Max pooling
+					m_MaxPool = nn.AdaptiveMaxPool2d((1,1))
+					GroundTruth_MaxPool = m_MaxPool(GroundTruth)
+					#print('\t\t GroundTruth_MaxPool.shape: ', GroundTruth_MaxPool.shape)
 
 					# zero the parameter gradients
 					optimizer.zero_grad()
@@ -95,7 +110,7 @@ class Model(object):
 						# Provide two inputs to model
 						outputs = self.model(inputs1, inputs2)
 						#_, preds = torch.max(outputs, 1)
-						loss = torch.sqrt(self.criterion(outputs, GroundTruth))
+						loss = torch.sqrt(self.criterion(outputs, GroundTruth_MaxPool))
 
 						# backward + optimize only if in training phase
 						if phase == 'train':
@@ -156,38 +171,6 @@ class Model(object):
 		torch.save(self.model.state_dict(),'pytorch_model.h5')
 
 
-	# Function for classification task
-	def visualize_model(self, dataloaders, class_names, num_images=6):
-		was_training = self.model.training
-		self.model.eval()
-		images_so_far = 0
-		fig = plt.figure()
-
-		with torch.no_grad():
-			for i, (inputs1, inputs2, inputs3, inputs4, labels) in enumerate(dataloaders['val']):
-				inputs1 = inputs1.to(self.device)
-				inputs2 = inputs2.to(self.device)
-				inputs3 = inputs3.to(self.device)
-				inputs4 = inputs4.to(self.device)
-				labels = labels.to(self.device)
-
-
-				outputs = self.model(inputs1, inputs2, inputs3, inputs4)
-				_, preds = torch.max(outputs, 1)
-
-				for j in range(inputs1.size()[0]):
-					images_so_far += 1
-					ax = plt.subplot(num_images//2, 2, images_so_far)
-					ax.axis('off')
-					ax.set_title('predicted: {}'.format(class_names[preds[j]]))
-					imshow(inputs1.cpu().data[j])
-
-					if images_so_far == num_images:
-						self.model.train(mode=was_training)
-						return
-			self.model.train(mode=was_training)
-
-
 	def test_model(self, dataloaders):
 		print("\nPrediction on validation data")
 		was_training = self.model.training
@@ -199,15 +182,26 @@ class Model(object):
 		running_loss = 0.0
 
 		with torch.no_grad():
-			for i, (inputs1, inputs2, GroundTruth) in enumerate(dataloaders['val']):
+			#for i, (inputs1, inputs2, GroundTruth) in enumerate(dataloaders['val']):
+			for patch_idx, patches_batch in enumerate(dataloaders['val']):
+				print('\t patch_idx: ', patch_idx)
+				inputs = patches_batch['Combined'][tio.DATA]
+				inputs1 = inputs[:,:,:,:,0:120]
+				inputs2 = inputs[:,:,:,:,-2]
+				GroundTruth = inputs[:,:,:,:,-1]
+
 				#print("DataLoader iteration: %d" % i)
 				inputs1 = inputs1.to(self.device)
 				inputs2 = inputs2.to(self.device)
 				GroundTruth = GroundTruth.to(self.device)
 
+				# Max pooling
+				m_MaxPool = nn.AdaptiveMaxPool2d((1,1))
+				GroundTruth_MaxPool = m_MaxPool(GroundTruth)
+					
 				outputs = self.model(inputs1, inputs2)
 
-				loss = torch.sqrt(self.criterion(outputs, GroundTruth))
+				loss = torch.sqrt(self.criterion(outputs, GroundTruth_MaxPool))
 
 				# statistics
 				running_loss += loss.item() * inputs1.size(0)

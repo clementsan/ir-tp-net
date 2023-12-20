@@ -2,19 +2,13 @@ from __future__ import print_function, division
 
 import numpy as np 
 import matplotlib.pyplot as plt
+import pandas as pd
+import torchio as tio 
 
-from dataset import MyData, CustomSubjectTIO
+from dataset import CustomSubjectTIO
 
-def load_data(data_list, data_transforms_input, data_transforms_output):
-	dataclass = MyData(data_list)
-	datasets = []
 
-	for x in range(dataclass.num_file):		
-		datasets.append((data_transforms_input['input1'](dataclass[x][0]), data_transforms_input['input2'](dataclass[x][1]), \
-			 data_transforms_output(dataclass[x][2])))
-
-	return datasets
-
+# Generate list of tio subjects from tensors
 def GenerateTIOSubjects(CSVFile):
 	MyCustomSubjectTIO = CustomSubjectTIO(CSVFile)
 	Subjects = []
@@ -22,6 +16,22 @@ def GenerateTIOSubjects(CSVFile):
 	for x in range(MyCustomSubjectTIO.num_file):		
 		Subjects.append(MyCustomSubjectTIO[x])
 	return Subjects
+
+
+# Generate list of tio subjects from CSV file
+def GenerateTIOSubjectsList(CSVFile):
+
+	df = pd.read_csv(CSVFile, sep=',')
+	File_list = df['Combined'].tolist()
+	Subjects = []
+
+	for idx in range(len(File_list)):		
+		Subject = tio.Subject(
+			Combined = tio.ScalarImage(File_list[idx]),
+			)
+		Subjects.append(Subject)
+	return Subjects
+
 
 
 def imshow(inp, title=None):

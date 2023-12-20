@@ -12,61 +12,6 @@ import torch
 import torchio as tio
 
 
-# Initial data class - read 1 layer only from 2dcorr image
-class MyData(Dataset):
-	def __init__(self, file_list):
-
-		df = pd.read_csv(file_list, sep=',')
-		im2DCorr_list = df['2DCorr'].tolist()
-		imTargetDisp_list = df['TargetDisparity'].tolist()
-		imGT_list = df['GroundTruth'].tolist()
-
-		num_file = df.shape[0]
-		
-		self.im2DCorr_list = im2DCorr_list
-		self.imTargetDisp_list = imTargetDisp_list
-		self.imGT_list = imGT_list
-		self.num_file = num_file
-		
-	def __len__(self):
-		return len(self.imGT_list)
-		
-	def __getitem__(self, idx):
-		
-		img2DCorr_name = self.im2DCorr_list[idx]
-		imgTargetDisp_name = self.imTargetDisp_list[idx]
-		imgGT_name = self.imGT_list[idx]
-	
-		# img2DCorr = PILimage.open(img2DCorr_name, 'r')
-		# imgTargetDisp = PILimage.open(imgTargetDisp_name, 'r')
-		# imgGT = PILimage.open(imgGT_name, 'r')
-		
-		# Read multi-layer file
-		#img2DCorr = imageio.mimread(img2DCorr_name,memtest=False)
-		#print(len(img2DCorr))
-		img2DCorr = imageio.imread(img2DCorr_name)
-		# Convert list to ndarray
-		#img2DCorr = np.array(img2DCorr)
-		#print(img2DCorr.shape)
-		#img2DCorr = np.expand_dims(img2DCorr, axis=0)
-		#img2DCorr = np.moveaxis(img2DCorr, 0, 1)
-		#print(img2DCorr.shape)
-		
-		# Change order of axes
-		#img2DCorr = np.moveaxis(img2DCorr, 0, 2)
-
-		#print('\nimg2DCorr type: ', img2DCorr.dtype)
-		#print('img2DCorr shape: ', img2DCorr.shape)
-		imgTargetDisp = imageio.imread(imgTargetDisp_name)
-		#print('imgTargetDisp type: ', imgTargetDisp.dtype)
-		#print('imgTargetDisp shape: ', imgTargetDisp.shape)
-		imgGT = imageio.imread(imgGT_name)
-		#print('imgGT type: ', imgGT.dtype)
-		#print('imgGT shape: ', imgGT.shape)
-		
-		return img2DCorr, imgTargetDisp, imgGT
-
-
 # Custom data class
 # - read 120 layers from 2dcorr image
 # - apply manual transform - CropCenter
@@ -310,3 +255,73 @@ class CustomSubjectTIO():
 
 		return Subject
 
+
+# Custom TIO Subject class
+# - read 122 layers from Combined image
+class MySubjectTIO():
+	def __init__(self, CSVFile):
+
+		df = pd.read_csv(CSVFile, sep=',')
+		imCombined_list = df['Combined'].tolist()
+
+		num_file = df.shape[0]
+		
+		self.imCombined_list = imCombined_list
+		self.num_file = num_file
+
+	def __len__(self):
+		return len(self.imCombined_list)
+
+	def __getitem__(self, idx):
+
+		#Retrieve file name 
+		imgCombined_name = self.imCombined_list[idx]
+
+		# Read 2dcorr image - all layers
+		imgCombined = imageio.mimread(imgCombined_name,memtest=False)
+		imgCombined = np.array(imgCombined)
+		# print('\nimgCombined type: ', imgCombined.dtype)
+		# print('imgCombined shape: ', imgCombined.shape)
+
+		# Read TargetDisp and GroundTruth images
+		imgTargetDisp = imageio.imread(imgTargetDisp_name)
+		# print('imgTargetDisp type: ', imgTargetDisp.dtype)
+		# print('imgTargetDisp shape: ', imgTargetDisp.shape)
+
+		imgGT = imageio.imread(imgGT_name)
+		# print('imgGT type: ', imgGT.dtype)
+		# print('imgGT shape: ', imgGT.shape)
+
+		# - - - - - - - - - - -
+		# Resample TargetDisp and imgTG (repeating values, to match img2DCor size)
+		imgTargetDisp_repeat0 = np.repeat(imgTargetDisp, 15, axis=0)
+		imgTargetDisp_repeat = np.repeat(imgTargetDisp_repeat0, 15, axis=1)
+		imgTargetDisp_repeat = np.expand_dims(imgTargetDisp_repeat, axis=0)
+
+		imgGT_repeat0 = np.repeat(imgGT, 15, axis=0)
+		imgGT_repeat = np.repeat(imgGT_repeat0, 15, axis=1)
+		imgGT_repeat = np.expand_dims(imgGT_repeat, axis=0)
+		# print('imgTargetDisp_repeat shape: ', imgTargetDisp_repeat.shape)
+		# print('imgGT_repeat shape: ', imgGT_repeat.shape)
+
+		# Stack TargetDisp and GT to img2dCorr, to generate one 3D volume
+		imgAll = np.concatenate((img2DCorr,imgTargetDisp_repeat), axis = 0)
+		imgAll = np.concatenate((imgAll,imgGT_repeat), axis = 0)
+		# print('imgAll shape: ', imgAll.shape)
+
+		# - - - - - - - - - - -
+		# Use of torchio transforms
+		# Create 4d tensor - (C, W, H, D) Channel, Weight, Height, Dimensions / layer)
+		imgAll_tio = np.moveaxis(imgAll, 0, 2)
+		imgAll_tio = np.expand_dims(imgAll_tio,axis=0)
+		# print('imgAll_tio shape: ', imgAll_tio.shape)
+
+		# Step 1 - convert np arrays to tensors
+		imgAll_t = torch.from_numpy(imgAll_tio)
+
+		# TorchIO - Create subject
+		Subject = tio.Subject(
+			All = tio.ScalarImage(tensor=imgAll_t),
+		)
+
+		return Subject

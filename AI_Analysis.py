@@ -40,13 +40,16 @@ CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
 # Data parameters
-NeighboringTiles = 3 # 3x3 adjacent tiles
+NeighboringTiles = 5 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
 NbImageLayers = 122
+Neighboringrid = str(NeighboringTiles) + 'x' + str(NeighboringTiles)
+ModelName = './pytorch_model_Tiles' + Neighboringrid + '.h5'
 
 # Data sampling parameters
-queue_length = 62*78*6 # 29016
-samples_per_volume = round(62*78/NeighboringTiles) # 62*78 # 4836
+queue_length = 62*78*NeighboringTiles # 29016
+#samples_per_volume = round(62*78/NeighboringTiles) # 62*78 # 4836
+samples_per_volume = 62*78 # 62*78 # 4836
 num_workers = 6
 
 # Neural network parameters
@@ -175,7 +178,7 @@ def main():
 	inputs = patches_batch['Combined'][tio.DATA]
 
 
-	input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data3x3(inputs,NbImageLayers,TileSize)
+	input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,NbImageLayers,TileSize,NeighboringTiles)
 
 	print('inputs.shape: ', inputs.shape)
 	print('input1_tiles.shape: ', input1_tiles.shape)
@@ -226,23 +229,23 @@ def main():
 
 	# ----------------------
 	# Create model
-	model_ft = Model(writer)
+	model_ft = Model(writer, NbImageLayers, TileSize, NeighboringTiles, ModelName)
 
 	# Tensorboard - add graph
 	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])
 	writer.close()
 
 
-	# ----------------------
-	# Train and evaluate
+	# # ----------------------
+	# # Train and evaluate
 	print("\n")
 	print('-' * 20)
 	print("Training...")
-	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr, nb_epochs=nb_epochs, nb_image_layers=NbImageLayers, tile_size=TileSize)
+	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr, nb_epochs=nb_epochs)
 	
 	# # ----------------------
 	# # Evaluate on validation data
-	# model_ft.test_model(dataloaders=patches_loader_dict, nb_image_layers=NbImageLayers, tile_size=TileSize)
+	# model_ft.test_model(dataloaders=patches_loader_dict)
 
 	plt.ioff()
 	plt.show()

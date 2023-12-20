@@ -23,20 +23,29 @@ from network import *
 import utils
 
 class Model(object):
-	def __init__(self, writer):
+	def __init__(self, writer, nb_image_layers, tile_size, neighboring_tiles, model_name):
 
 		self.writer = writer
+		self.nb_image_layers = nb_image_layers
+		self.tile_size = tile_size
+		self.neighboring_tiles = neighboring_tiles
+		self.InputDepth = self.nb_image_layers - 2
+		# Model name - for saving
+		self.model_name = model_name
+
 		# Criterion MSE -> loss RMSE
 		self.criterion = nn.MSELoss()
 		self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 		# Create ResNet50 model
 		self.create_model()
 
+
 	def create_model(self):
 		
-		# Fully Connected network - 5 layers
-		#self.model = MySingleNetwork()
-		self.model = MyParallelNetwork()
+		# Dynamic network with parallel subnets (e.g. for 3x3, 5x5 neighboring tiles)
+		self.model = MyParallelNetwork(self.InputDepth, self.tile_size, self.neighboring_tiles)
+		
 		print(self.model)
 
 		# Attach to device
@@ -45,7 +54,7 @@ class Model(object):
 
 
 	# Need to udpate: step1 vs step2
-	def train_model(self, dataloaders, lr, nb_epochs=25, nb_image_layers=120, tile_size=15):
+	def train_model(self, dataloaders, lr, nb_epochs=25):
 		since = time.time()
 
 		# Unfreeze all layers
@@ -89,7 +98,7 @@ class Model(object):
 					inputs = patches_batch['Combined'][tio.DATA]
 
 					print('\t\t Preparing data...')
-					input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data3x3(inputs,nb_image_layers,tile_size)
+					input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,self.nb_image_layers,self.tile_size,self.neighboring_tiles)
 					print('\t\t Preparing data - done -')
 					
 					input1_tiles = input1_tiles.to(self.device)
@@ -143,7 +152,7 @@ class Model(object):
 					best_loss = epoch_loss
 					best_model_wts = copy.deepcopy(self.model.state_dict())
 					# Save trained model
-					torch.save(self.model.state_dict(),'pytorch_model.h5')
+					torch.save(self.model.state_dict(),self.model_name)
 
 			print()
 
@@ -165,14 +174,14 @@ class Model(object):
 		self.model.load_state_dict(best_model_wts)
 
 		# Save trained model
-		torch.save(self.model.state_dict(),'pytorch_model.h5')
+		torch.save(self.model.state_dict(), self.model_name)
 
 
-	def test_model(self, dataloaders, nb_image_layers=120, tile_size=15):
+	def test_model(self, dataloaders):
 		print("\nPrediction on validation data")
 		was_training = self.model.training
 		self.model.eval()
-		#self.model.load_state_dict(torch.load('pytorch_model.h5'))
+		#self.model.load_state_dict(torch.load(self.model_name))
 		#self.model.eval()
 		total_labels = []
 		total_preds = []
@@ -185,7 +194,7 @@ class Model(object):
 				inputs = patches_batch['Combined'][tio.DATA]
 
 				print('\t\t Preparing data...')
-				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data3x3(inputs,nb_image_layers,tile_size)
+				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs, self.nb_image_layers, self.tile_size, self.neighboring_tiles)
 				print('\t\t Preparing data - done -')
 
 				#print("DataLoader iteration: %d" % i)
@@ -209,8 +218,6 @@ class Model(object):
 		print('Loss: ', total_loss)
 
 		self.model.train(mode=was_training)
-
-
 
 
 	def majority_vote(self, preds, labels):

@@ -24,35 +24,44 @@ from dataset import CustomImageDataset, CustomImageDatasetTIO
 from torch.utils.data import DataLoader
 import torchio as tio  
 
-######################################################################
+# -----------
 from model import *
 import utils
+import dataset
 from network import *
 
 ######################################################################
 # Parameters
-# ---------
-path = './Example_CSV/'
-CSVBaseName = 'Data_Example_'
-CSVFile_train = './Example_CSV/Data_Example_train.csv'
-CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
+# Input files
+path = '../../CSVFileCreation/'
+CSVBaseName = 'Data_Env1_DOFFS0.014_'
+CSVFile_train = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_train_smallForExperiment_chimera.csv'
+CSVFile_val = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_val_smallForExperiment_chimera.csv'
+#CSVFile_train = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_train.csv'
+#CSVFile_val = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_val.csv'
+
+# Data parameters
+NeighboringTiles = 3 # 3x3 adjacent tiles
+TileSize = 15
+NbImageLayers = 122
+
+# Data sampling parameters
+queue_length = 62*78*6 # 29016
+samples_per_volume = round(62*78/NeighboringTiles) # 62*78 # 4836
+num_workers = 6
+
+# Neural network parameters
 # Batch size
 bs = 2000 
-# Image size
-sz1 = 15
-sz2 = 1
 # Learning rate
-lr1 = 5e-3
-lr2 = 1e-4
+lr = 5e-3
 # Number Epochs
-nb_epochs1 = 40
-nb_epochs2 = 30
+nb_epochs = 40
 
-
-# --------
-# Device for CUDA (pytorch 0.4.0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# Device for CUDA 
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+######################################################################
 
 
 def main():
@@ -77,8 +86,8 @@ def main():
 
 	print('\n--- Loading data... ---')
 
-	Subjects_list_train = utils.GenerateTIOSubjectsList(CSVFile_train)
-	Subjects_list_test = utils.GenerateTIOSubjectsList(CSVFile_val)
+	Subjects_list_train = dataset.GenerateTIOSubjectsList(CSVFile_train)
+	Subjects_list_test = dataset.GenerateTIOSubjectsList(CSVFile_val)
 	
 	# torchIO transforms
 	TIOtransforms = [
@@ -113,18 +122,16 @@ def main():
 
 	# ------------------
 	# Patch-based pipeline...
-	patch_size = (15,15,122)
-	queue_length = 62*78*6 # 29016
-	samples_per_volume = 62*78 # 62*78 # 4836
+	patch_size = (NeighboringTiles * TileSize, NeighboringTiles * TileSize, NbImageLayers)
 	sampler_train = tio.data.GridSampler(patch_size=patch_size)
 	sampler_test = tio.data.GridSampler(patch_size=patch_size)
-
+	
 	patches_queue_train = tio.Queue(
 		subjects_dataset = Subjects_dataset_train,
 		max_length = queue_length,
 		samples_per_volume = samples_per_volume,
 		sampler = sampler_train,
-		num_workers = 6, #4
+		num_workers = num_workers,
 		shuffle_subjects = True,
 		shuffle_patches = True,
 	)
@@ -133,7 +140,7 @@ def main():
 		max_length = queue_length,
 		samples_per_volume = samples_per_volume,
 		sampler = sampler_test,
-		num_workers = 6, #4
+		num_workers = num_workers,
 		shuffle_subjects = True,
 		shuffle_patches = True,
 	)
@@ -141,14 +148,14 @@ def main():
 	patches_loader_train = DataLoader(
 		patches_queue_train,
 		batch_size = bs,
-		#shuffle = False,
+		shuffle = True,
 		num_workers = 0,  # this must be 0
 	)
 
 	patches_loader_test = DataLoader(
 		patches_queue_test,
 		batch_size = bs,
-		#shuffle = False,
+		shuffle = True,
 		num_workers = 0,  # this must be 0
 	)
 
@@ -168,22 +175,15 @@ def main():
 	print('\n --- Check patch Input sizes ---')
 	patches_batch = next(iter(patches_loader_dict['val']))
 	inputs = patches_batch['Combined'][tio.DATA]
-	inputs1 = inputs[:,:,:,:,0:120]
-	inputs2 = inputs[:,:,:,:,-2]
-	GroundTruth = inputs[:,:,:,:,-1]
-	
-	# Max pooling
-	m_MaxPool = nn.AdaptiveMaxPool2d((1,1))
-	GroundTruth_MaxPool = m_MaxPool(GroundTruth)
-					
-	print('inputs.type: ', inputs.type())
-	# torch.Size([16, 1, 15, 15])
-	print('inputs.shape: ', inputs.shape)
-	print('inputs1.shape: ', inputs1.shape)
-	print('inputs2.shape: ', inputs2.shape)
-	print('GroundTruth.shape: ', GroundTruth.shape)
-	print('GroundTruth_MaxPool.shape: ', GroundTruth_MaxPool.shape)
 
+
+	input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data3x3(inputs,NbImageLayers,TileSize)
+
+	print('inputs.shape: ', inputs.shape)
+	print('input1_tiles.shape: ', input1_tiles.shape)
+	print('input2_tiles_real.shape: ', input2_tiles_real.shape)
+	print('GroundTruth_real.shape: ', GroundTruth_real.shape)
+	
 
 	# print('\n --- Plot first subject from batch ---')
 	# FirstInputs2 = inputs2[0,:,:,:]
@@ -220,10 +220,10 @@ def main():
 
 
 	######################################################################
-	# Transfer learning - step 1: fixed features 
+	# Neural network - training 
 	# ----------------------
 	#
-	# Load a pretrained model and reset final fully connected layer.
+	# Create a neural network model and start training / testing.
 	#
 
 	# ----------------------
@@ -231,28 +231,23 @@ def main():
 	model_ft = Model(writer)
 
 	# Tensorboard - add graph
-	writer.add_graph(model_ft.model, [inputs1.to(model_ft.device), inputs2.to(model_ft.device)])
+	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])
 	writer.close()
-	# Tensorboard - log embedding
-	# features = inputs1.view(-1, 15 * 15)
-	# writer.add_embedding(features)
-	# writer.close()
+
 
 	# ----------------------
 	# Train and evaluate
 	print("\n")
 	print('-' * 20)
 	print("Training...")
-	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr1, nb_epochs=nb_epochs1)
+	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr, nb_epochs=nb_epochs, nb_image_layers=NbImageLayers, tile_size=TileSize)
 	
 	# # ----------------------
 	# # Evaluate on validation data
-	# model_ft.test_model(dataloaders=patches_loader_dict)
-
+	# model_ft.test_model(dataloaders=patches_loader_dict, nb_image_layers=NbImageLayers, tile_size=TileSize)
 
 	plt.ioff()
 	plt.show()
-
 
 if __name__ == "__main__":
 	main()

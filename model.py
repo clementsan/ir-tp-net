@@ -20,6 +20,7 @@ import torchio as tio
 
 from layers import *
 from network import *
+import utils
 
 class Model(object):
 	def __init__(self, writer):
@@ -33,8 +34,9 @@ class Model(object):
 
 	def create_model(self):
 		
-		# Fully Connected network
-		self.model = MyNetwork2()
+		# Fully Connected network - 5 layers
+		#self.model = MySingleNetwork()
+		self.model = MyParallelNetwork()
 		print(self.model)
 
 		# Attach to device
@@ -43,7 +45,7 @@ class Model(object):
 
 
 	# Need to udpate: step1 vs step2
-	def train_model(self, dataloaders, lr, nb_epochs=25):
+	def train_model(self, dataloaders, lr, nb_epochs=25, nb_image_layers=120, tile_size=15):
 		since = time.time()
 
 		# Unfreeze all layers
@@ -55,7 +57,6 @@ class Model(object):
 
 		# Decay LR by a factor of 0.1 every 7 epochs
 		scheduler = lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
-
 
 		best_model_wts = copy.deepcopy(self.model.state_dict())
 		#best_acc = 0.0
@@ -86,20 +87,15 @@ class Model(object):
 				for patch_idx, patches_batch in enumerate(dataloaders[phase]):
 					print('\t patch_idx: ', patch_idx)
 					inputs = patches_batch['Combined'][tio.DATA]
-					inputs1 = inputs[:,:,:,:,0:120]
-					inputs2 = inputs[:,:,:,:,-2]
-					GroundTruth = inputs[:,:,:,:,-1]
-					#print('\t\t inputs.shape: ', inputs.shape)
 
-					inputs1 = inputs1.to(self.device)
-					inputs2 = inputs2.to(self.device)
-					GroundTruth = GroundTruth.to(self.device)
+					print('\t\t Preparing data...')
+					input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data3x3(inputs,nb_image_layers,tile_size)
+					print('\t\t Preparing data - done -')
+					
+					input1_tiles = input1_tiles.to(self.device)
+					input2_tiles_real = input2_tiles_real.to(self.device)
+					GroundTruth_real = GroundTruth_real.to(self.device)
 					#print('\t\t GroundTruth.shape: ', GroundTruth.shape)
-
-					# Max pooling
-					m_MaxPool = nn.AdaptiveMaxPool2d((1,1))
-					GroundTruth_MaxPool = m_MaxPool(GroundTruth)
-					#print('\t\t GroundTruth_MaxPool.shape: ', GroundTruth_MaxPool.shape)
 
 					# zero the parameter gradients
 					optimizer.zero_grad()
@@ -107,10 +103,11 @@ class Model(object):
 					# forward
 					# track history if only in train
 					with torch.set_grad_enabled(phase == 'train'):
+
 						# Provide two inputs to model
-						outputs = self.model(inputs1, inputs2)
+						outputs = self.model(input1_tiles, input2_tiles_real)
 						#_, preds = torch.max(outputs, 1)
-						loss = torch.sqrt(self.criterion(outputs, GroundTruth_MaxPool))
+						loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))
 
 						# backward + optimize only if in training phase
 						if phase == 'train':
@@ -118,7 +115,7 @@ class Model(object):
 							optimizer.step()
 
 					# statistics
-					running_loss += loss.item() * inputs1.size(0)
+					running_loss += loss.item() * input1_tiles.size(0)
 					#running_corrects += torch.sum(preds == labels.data)
 
 				epoch_loss = running_loss / len(dataloaders[phase].dataset) 
@@ -171,7 +168,7 @@ class Model(object):
 		torch.save(self.model.state_dict(),'pytorch_model.h5')
 
 
-	def test_model(self, dataloaders):
+	def test_model(self, dataloaders, nb_image_layers=120, tile_size=15):
 		print("\nPrediction on validation data")
 		was_training = self.model.training
 		self.model.eval()
@@ -186,25 +183,22 @@ class Model(object):
 			for patch_idx, patches_batch in enumerate(dataloaders['val']):
 				print('\t patch_idx: ', patch_idx)
 				inputs = patches_batch['Combined'][tio.DATA]
-				inputs1 = inputs[:,:,:,:,0:120]
-				inputs2 = inputs[:,:,:,:,-2]
-				GroundTruth = inputs[:,:,:,:,-1]
+
+				print('\t\t Preparing data...')
+				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data3x3(inputs,nb_image_layers,tile_size)
+				print('\t\t Preparing data - done -')
 
 				#print("DataLoader iteration: %d" % i)
-				inputs1 = inputs1.to(self.device)
-				inputs2 = inputs2.to(self.device)
-				GroundTruth = GroundTruth.to(self.device)
-
-				# Max pooling
-				m_MaxPool = nn.AdaptiveMaxPool2d((1,1))
-				GroundTruth_MaxPool = m_MaxPool(GroundTruth)
+				input1_tiles = input1_tiles.to(self.device)
+				input2_tiles_real = input2_tiles_real.to(self.device)
+				GroundTruth_real = GroundTruth_real.to(self.device)
 					
-				outputs = self.model(inputs1, inputs2)
+				outputs = self.model(input1_tiles, input2_tiles_real)
 
-				loss = torch.sqrt(self.criterion(outputs, GroundTruth_MaxPool))
+				loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))
 
 				# statistics
-				running_loss += loss.item() * inputs1.size(0)
+				running_loss += loss.item() * input1_tiles.size(0)
 
 			total_loss = running_loss / len(dataloaders['val'].dataset)
 

@@ -12,6 +12,32 @@ import torch
 import torchio as tio
 
 
+# Generate list of tio subjects from CSV file
+def GenerateTIOSubjectsList(CSVFile):
+
+	df = pd.read_csv(CSVFile, sep=',')
+	File_list = df['Combined'].tolist()
+	Subjects = []
+
+	for idx in range(len(File_list)):		
+		Subject = tio.Subject(
+			Combined = tio.ScalarImage(File_list[idx]),
+			)
+		Subjects.append(Subject)
+	return Subjects
+
+
+# old - unused
+# Generate list of tio subjects from tensors
+def GenerateTIOSubjects(CSVFile):
+	MyCustomSubjectTIO = CustomSubjectTIO(CSVFile)
+	Subjects = []
+
+	for x in range(MyCustomSubjectTIO.num_file):		
+		Subjects.append(MyCustomSubjectTIO[x])
+	return Subjects
+
+
 # Custom data class
 # - read 120 layers from 2dcorr image
 # - apply manual transform - CropCenter

@@ -3,7 +3,7 @@ from __future__ import print_function, division
 import numpy as np 
 import matplotlib.pyplot as plt
 
-from dataset import MyData
+from dataset import MyData, CustomSubjectTIO
 
 def load_data(data_list, data_transforms_input, data_transforms_output):
 	dataclass = MyData(data_list)
@@ -14,6 +14,14 @@ def load_data(data_list, data_transforms_input, data_transforms_output):
 			 data_transforms_output(dataclass[x][2])))
 
 	return datasets
+
+def GenerateTIOSubjects(CSVFile):
+	MyCustomSubjectTIO = CustomSubjectTIO(CSVFile)
+	Subjects = []
+
+	for x in range(MyCustomSubjectTIO.num_file):		
+		Subjects.append(MyCustomSubjectTIO[x])
+	return Subjects
 
 
 def imshow(inp, title=None):

@@ -51,7 +51,7 @@ nb_epochs2 = 30
 
 # --------
 # Device for CUDA (pytorch 0.4.0)
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def main():
@@ -121,32 +121,44 @@ def main():
 	}
 
 
-
-	# ---------
+	# - - - - - - - - - - - - -
 	since = time.time()
 
-	training_data = CustomImageDatasetTIO(CSVFile_train,transform=data_transforms['train'], target_transform=data_transforms['GroundTruth'])
-	test_data = CustomImageDatasetTIO(CSVFile_val,transform=data_transforms['val'], target_transform=data_transforms['GroundTruth'])
-	train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=1)
-	test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=False, num_workers=1)
-
-	dataloaders_dict1 = {}
-	dataloaders_dict1['train'] = train_dataloader
-	dataloaders_dict1['val'] = test_dataloader
-
-
-	print('\nlen(training_data)',len(training_data))
-	print('len(training_data[0])',len(training_data[0]))
-	print('training_data[0][0].shape)',training_data[0][0].shape)
-
-	print('\nlen(test_data)',len(test_data))
-	print('len(test_data[0])',len(test_data[0]))
-	print('test_data[0][0].shape)',test_data[0][0].shape)
+	print('\n--- Loading data... ---')
+	training_subjects = utils.GenerateTIOSubjects(CSVFile_train)
+	test_subjects = utils.GenerateTIOSubjects(CSVFile_val)	
 
 	time_elapsed = time.time() - since
 	print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
 
-	# ---------
+	# - - - - - - - - - - - - -
+
+
+	# # ---------
+	# since = time.time()
+
+	# training_data = CustomImageDatasetTIO(CSVFile_train,transform=data_transforms['train'], target_transform=data_transforms['GroundTruth'])
+	# test_data = CustomImageDatasetTIO(CSVFile_val,transform=data_transforms['val'], target_transform=data_transforms['GroundTruth'])
+	# train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=1)
+	# test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=False, num_workers=1)
+
+	# dataloaders_dict1 = {}
+	# dataloaders_dict1['train'] = train_dataloader
+	# dataloaders_dict1['val'] = test_dataloader
+
+
+	# # print('\nlen(training_data)',len(training_data))
+	# # print('len(training_data[0])',len(training_data[0]))
+	# # print('training_data[0][0].shape)',training_data[0][0].shape)
+
+	# # print('\nlen(test_data)',len(test_data))
+	# # print('len(test_data[0])',len(test_data[0]))
+	# # print('test_data[0][0].shape)',test_data[0][0].shape)
+
+	# time_elapsed = time.time() - since
+	# print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
+
+	# # ---------
 
 
 	# ---------
@@ -172,29 +184,29 @@ def main():
 	# print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
 
 
-
 	# ----------------------
 	# Visualize input data
 
-	# default `log_dir` is "runs" - we'll be more specific here
-	writer = SummaryWriter('tensorboard/MyNetwork')
+	# # default `log_dir` is "runs" - we'll be more specific here
+	# writer = SummaryWriter('tensorboard/MyNetwork')
 
-	# # Get a batch of training data
-	inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict1['train']))
-	#print(inputs1)
-	#print(classes)
-	print('\n\n --- Check Input sizes ---')
-	#print('inputs1.type: ', inputs1.type())
-	# torch.Size([16, 1, 15, 15])
-	print('inputs1.shape: ', inputs1.shape)
+	# # # Get a batch of training data
+	# #inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict1['train']))
+	# inputs1 = next(iter(dataloaders_dict1['train']))
+	# #print(inputs1)
+	# #print(classes)
+	# print('\n\n --- Check Input sizes ---')
+	# #print('inputs1.type: ', inputs1.type())
+	# # torch.Size([16, 1, 15, 15])
+	# print('inputs1.shape: ', inputs1.shape)
 
-	#print('inputs2.type: ', inputs2.type())
-	# torch.Size([16, 1, 1, 1])
-	print('inputs2.shape: ', inputs2.shape)
+	# #print('inputs2.type: ', inputs2.type())
+	# # torch.Size([16, 1, 1, 1])
+	# print('inputs2.shape: ', inputs2.shape)
 
-	#print('GroundTruth.type: ', GroundTruth.type())
-	# torch.Size([16, 1, 1, 1])
-	print('GroundTruth.shape: ', GroundTruth.shape)
+	# #print('GroundTruth.type: ', GroundTruth.type())
+	# # torch.Size([16, 1, 1, 1])
+	# print('GroundTruth.shape: ', GroundTruth.shape)
 
 
 
@@ -232,26 +244,26 @@ def main():
 
 	# ----------------------
 	# Create model
-	model_ft = Model(writer)
+	# model_ft = Model(writer)
 
-	# Tensorboard - add graph
-	writer.add_graph(model_ft.model, [inputs1.to(model_ft.device), inputs2.to(model_ft.device)])
-	writer.close()
-	# Tensorboard - log embedding
-	# features = inputs1.view(-1, 15 * 15)
-	# writer.add_embedding(features)
+	# # Tensorboard - add graph
+	# writer.add_graph(model_ft.model, [inputs1.to(model_ft.device), inputs2.to(model_ft.device)])
 	# writer.close()
+	# # Tensorboard - log embedding
+	# # features = inputs1.view(-1, 15 * 15)
+	# # writer.add_embedding(features)
+	# # writer.close()
 
-	# ----------------------
-	# Train and evaluate
-	print("\n")
-	print('-' * 20)
-	print("Training...")
-	model_ft.train_model(dataloaders=dataloaders_dict1, lr=lr1, nb_epochs=nb_epochs1)
-	
 	# # ----------------------
-	# # Evaluate on validation data
-	model_ft.test_model(dataloaders_dict1)
+	# # Train and evaluate
+	# print("\n")
+	# print('-' * 20)
+	# print("Training...")
+	# model_ft.train_model(dataloaders=dataloaders_dict1, lr=lr1, nb_epochs=nb_epochs1)
+	
+	# # # ----------------------
+	# # # Evaluate on validation data
+	# model_ft.test_model(dataloaders_dict1)
 
 
 	# # ----------------------

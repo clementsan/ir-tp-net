@@ -34,12 +34,10 @@ from network import *
 # Parameters
 
 # Input files
-path = '../../CSVFileCreation/'
-CSVBaseName = 'Data_Env1_DOFFS0.014_'
-CSVFile_train = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_train_smallForExperiment_chimera.csv'
-CSVFile_val = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_val_smallForExperiment_chimera.csv'
-#CSVFile_train = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_train.csv'
-#CSVFile_val = '../../CSVFileCreation/Data_Env1_DOFFS0.014_combined_val.csv'
+path = './Example_CSV/'
+CSVBaseName = 'Data_Example_'
+CSVFile_train = './Example_CSV/Data_Example_train.csv'
+CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
 # Data parameters
 NeighboringTiles = 3 # 3x3 adjacent tiles

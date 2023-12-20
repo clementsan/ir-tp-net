@@ -45,9 +45,6 @@ class MyNetwork(nn.Module):
 
 
 
-
-
-
 # Network similar to fastAI (with shared weights)
 class MyNetworkFastAI2(nn.Module):
 	def __init__(self):

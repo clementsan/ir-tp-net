@@ -20,6 +20,9 @@ import sys
 import os
 import copy
 
+from dataset import CustomImageDataset
+from torch.utils.data import DataLoader
+
 ######################################################################
 from model import *
 import utils
@@ -28,10 +31,13 @@ from network import *
 ######################################################################
 # Parameters
 # ---------
-path = './Example_CSV'
+path = './Example_CSV/'
 CSVBaseName = 'Data_Example_'
+CSVFile_train = './Example_CSV/Data_Example_train.csv'
+CSVFile_val = './Example_CSV/Data_Example_val.csv'
+
 # Batch size
-bs = 16
+bs = 16 # default = 16
 # Image size
 sz1 = 15
 sz2 = 1
@@ -115,28 +121,56 @@ def main():
 	}
 
 
+
+	# ---------
+	since = time.time()
+
+	training_data = CustomImageDataset(CSVFile_train,transform=data_transforms['train'], target_transform=data_transforms['GroundTruth'])
+	test_data = CustomImageDataset(CSVFile_val,transform=data_transforms['val'], target_transform=data_transforms['GroundTruth'])
+	train_dataloader = torch.utils.data.DataLoader(training_data, batch_size=bs, shuffle=True, num_workers=1)
+	test_dataloader = torch.utils.data.DataLoader(test_data, batch_size=bs, shuffle=True, num_workers=1)
+
+	dataloaders_dict1 = {}
+	dataloaders_dict1['train'] = train_dataloader
+	dataloaders_dict1['val'] = test_dataloader
+
+
+	print('\nlen(training_data)',len(training_data))
+	print('len(training_data[0])',len(training_data[0]))
+	print('training_data[0][0].shape)',training_data[0][0].shape)
+
+	print('\nlen(test_data)',len(test_data))
+	print('len(test_data[0])',len(test_data[0]))
+	print('test_data[0][0].shape)',test_data[0][0].shape)
+
+	time_elapsed = time.time() - since
+	print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
+
+	# ---------
+
+
 	# ---------
 	data_dict = {}
 	dataloaders_dict = {}	
 
 	since = time.time()
 	for x in ['train', 'val']:
+
 		# CSV File
 		data_list = os.path.join( path, (CSVBaseName + x + '.csv'))
 		print(data_list)
 		data = utils.load_data(data_list, data_transforms[x], data_transforms['GroundTruth'])
 		print('\nlen(data)',len(data))
 		print('len(data[0])',len(data[0]))
-		print('data[0][0].shape)',data[0][0].shape)
-		
 		#time.sleep(20)
 
 		data_dict[x] = data
 		dataloaders_dict[x] = torch.utils.data.DataLoader(data_dict[x], batch_size=bs, shuffle=True, num_workers=1)
 
-	time_elapsed = time.time() - since	
+	time_elapsed = time.time() - since
 	print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
-		
+
+
 
 	# ----------------------
 	# Visualize input data
@@ -145,7 +179,7 @@ def main():
 	writer = SummaryWriter('tensorboard/MyNetwork')
 
 	# Get a batch of training data
-	inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict['train']))
+	inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict1['train']))
 	#print(inputs1)
 	#print(classes)
 	print('\n\n --- Check Input sizes ---')
@@ -161,14 +195,14 @@ def main():
 	# torch.Size([16, 1, 1, 1])
 	print('GroundTruth.shape: ', GroundTruth.shape)
 
-	# Make first grid from batch
-	Grid_2DCorr = torchvision.utils.make_grid(inputs1, nrow=4, normalize=True)
-	# shape [3, 70, 70] 4 rows with 2-pixel padding
-	print('\nimshow Grid_2DCorr shape: ', Grid_2DCorr.shape)
-	utils.imshow(Grid_2DCorr, title="Data batch - 2DCorr")
+	# # Make first grid from batch
+	# Grid_2DCorr = torchvision.utils.make_grid(inputs1, nrow=4, normalize=True)
+	# # shape [3, 70, 70] 4 rows with 2-pixel padding
+	# print('\nimshow Grid_2DCorr shape: ', Grid_2DCorr.shape)
+	# utils.imshow(Grid_2DCorr, title="Data batch - 2DCorr")
 
-	# Tensorboard - add grid image
-	writer.add_image('Grid_2DCorr', Grid_2DCorr)
+	# # Tensorboard - add grid image
+	# writer.add_image('Grid_2DCorr', Grid_2DCorr)
 	#plt.show()
 
 	# # Make first grid from batch
@@ -211,12 +245,11 @@ def main():
 	print('-' * 20)
 	print("Training...")
 	
-	TransferLearningStep = "Step1"
-	model_ft.train_model(TransferLearningStep, dataloaders=dataloaders_dict, lr=lr1, nb_epochs=nb_epochs1)
+	model_ft.train_model(dataloaders=dataloaders_dict1, lr=lr1, nb_epochs=nb_epochs1)
 	
-	# ----------------------
-	# Evaluate on validation data
-	model_ft.test_model(dataloaders_dict)
+	# # ----------------------
+	# # Evaluate on validation data
+	model_ft.test_model(dataloaders_dict1)
 
 
 	# # ----------------------

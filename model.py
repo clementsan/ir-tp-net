@@ -32,13 +32,9 @@ class Model(object):
 
 	def create_model(self):
 		
-
-		# FC network
+		# Fully Connected network
 		self.model = MyNetwork()
 		print(self.model)
-		#print(summary(self.model, (2,224,224)))
-		# for name, param in self.model.named_parameters():
-		# 	print("Layer: {name} | Size: {param.size()} | Values : {param[:2]} \n")
 
 		# Attach to device
 		self.model = self.model.to(self.device)
@@ -46,7 +42,7 @@ class Model(object):
 
 
 	# Need to udpate: step1 vs step2
-	def train_model(self, TransferLearningStep, dataloaders, lr, nb_epochs=25):
+	def train_model(self, dataloaders, lr, nb_epochs=25):
 		since = time.time()
 
 		# Unfreeze all layers
@@ -147,11 +143,11 @@ class Model(object):
 		# Generate plots
 		plt.figure(); plt.plot(range(1,nb_epochs+1),train_loss,'k', range(1,nb_epochs+1), val_loss, 'r')
 		plt.legend(['Train Loss','Val Loss'])
-		plt.savefig(os.getcwd()+ '/loss_' + TransferLearningStep + '.png')
+		plt.savefig(os.getcwd()+ '/loss.png')
 
 		# plt.figure(); plt.plot(range(1,nb_epochs+1),train_acc,'k', range(1,nb_epochs+1), val_acc, 'r')
 		# plt.legend(['Train Accuracy','Val Accuracy'])
-		# plt.savefig(os.getcwd()+ '/acc_' + TransferLearningStep + '.png')
+		# plt.savefig(os.getcwd()+ '/acc.png')
 
 		# load best model weights
 		self.model.load_state_dict(best_model_wts)

@@ -87,20 +87,28 @@ class MySingleNetwork(nn.Module):
 		return out
 
 
+
 # Phase 1 - Sub-network
 class MySubNetworkPhase1(nn.Module):
-	def __init__(self):
+	def __init__(self, nb_image_layers, tile_size, neighboring_tiles):
 		super().__init__()
+
+		self.nb_image_layers = nb_image_layers
+		self.tile_size = tile_size
+		self.neighboring_tiles = neighboring_tiles
+
+		#print('SUBNETPHASE1 - nb_image_layers',self.nb_image_layers)
+		#print('SUBNETPHASE1 - neighboring_tiles',self.neighboring_tiles)
 		
-		# Initial parameters
-		tile_size = 15
-		nb_image_pairs = 120
+
 		list_nbfeatures = [2048,512,256,64]
 
 		self.flatten1 = nn.Flatten()
 		self.flatten2 = nn.Flatten()
 
-		nb_input_features = nb_image_pairs * tile_size * tile_size + 1 # 120*15*15+1 #27001
+		nb_input_features = self.nb_image_layers * self.tile_size * self.tile_size + 1 # 120*15*15+1 #27001
+		#print('SUBNETPHASE1 - nb_input_features',nb_input_features)
+
 		self.fc1 = nn.Linear(nb_input_features, list_nbfeatures[0])
 		self.BN1 = torch.nn.BatchNorm1d(list_nbfeatures[0])
 		#self.drop1 = nn.Dropout(p=0.25)
@@ -144,11 +152,13 @@ class MySubNetworkPhase1(nn.Module):
 
 # sub-Network - Phase2
 class MySubNetworkPhase2(nn.Module):
-	def __init__(self):
+	def __init__(self, neighboring_tiles, fc_inputfeatures):
 		super().__init__()
 		
+		self.neighboring_tiles = neighboring_tiles
+		self.fc_inputfeatures = fc_inputfeatures
+		nb_input_features = self.neighboring_tiles * self.neighboring_tiles * self.fc_inputfeatures
 
-		nb_input_features = 3*3*64
 		list_nbfeatures = [128,64,32]
 
 		self.fc1 = nn.Linear(nb_input_features, list_nbfeatures[0])
@@ -188,125 +198,42 @@ class MySubNetworkPhase2(nn.Module):
 		return out
 
 
-# Parallel network for 3x3 neighboring tiles
-#  - Phase1 : 3x3 parallel sub-networks with FC layers
-#  - Concatenating 3x3 features
+# Parallel network for neighboring tiles (e.g. 3x3, 5x5)
+#  - Phase1 : 3x3 or 5x5 parallel sub-networks with FC layers
+#  - Concatenating 3x3 or 5x5 features
 #  - Phase 2 - single sub-network with FC layers
 class MyParallelNetwork(nn.Module):
-	def __init__(self):
+	def __init__(self, nb_image_layers, tile_size, neighboring_tiles):
 		super().__init__()
 		
-		# Initial parameters
-		tile_size = 15
-		nb_image_pairs = 120
-
-		self.subnetwork0 = MySubNetworkPhase1()
-		self.subnetwork1 = MySubNetworkPhase1()
-		self.subnetwork2 = MySubNetworkPhase1()
-		self.subnetwork3 = MySubNetworkPhase1()
-		self.subnetwork4 = MySubNetworkPhase1()
-		self.subnetwork5 = MySubNetworkPhase1()
-		self.subnetwork6 = MySubNetworkPhase1()
-		self.subnetwork7 = MySubNetworkPhase1()
-		self.subnetwork8 = MySubNetworkPhase1()
+		self.nb_image_layers = nb_image_layers
+		self.tile_size = tile_size
+		self.neighboring_tiles = neighboring_tiles
 		
-		self.Phase2 = MySubNetworkPhase2()
+		# Number of sub-networks: 5x5
+		self.nb_subnetworks = self.neighboring_tiles * self.neighboring_tiles
+		
+		#print('NETWORK - nb_image_layers',self.nb_image_layers)
+		#print('NETWORK - neighboring_tiles',self.neighboring_tiles)
+		#print('NETWORK - nb_subnetworks',self.nb_subnetworks)
+
+		# define ModuleList of subnetworks
+		self.subnetworks = nn.ModuleList([MySubNetworkPhase1(self.nb_image_layers, self.tile_size, self.neighboring_tiles) for i in range(self.nb_subnetworks)])
+		
+		self.Phase2 = MySubNetworkPhase2(self.neighboring_tiles, 64)
 
 		# Need to add batch normalization?
 		self.flatten1 = nn.Flatten()
 
-
-
 	def forward(self, x1, x2):
-		# x1 & x2 = list of 3x3 neighboring tiles
-		x_sub0 = self.subnetwork0(x1[:,0,...], x2[:,0,...]) 
-		x_sub1 = self.subnetwork1(x1[:,1,...], x2[:,1,...])
-		x_sub2 = self.subnetwork2(x1[:,2,...], x2[:,2,...])
-		x_sub3 = self.subnetwork3(x1[:,3,...], x2[:,3,...])
-		x_sub4 = self.subnetwork4(x1[:,4,...], x2[:,4,...])
-		x_sub5 = self.subnetwork5(x1[:,5,...], x2[:,5,...])
-		x_sub6 = self.subnetwork6(x1[:,6,...], x2[:,6,...])
-		x_sub7 = self.subnetwork7(x1[:,7,...], x2[:,7,...]) 
-		x_sub8 = self.subnetwork8(x1[:,8,...], x2[:,8,...]) 
-
-		x = torch.cat((x_sub0,x_sub1,x_sub2,x_sub3,x_sub4,x_sub5,x_sub6,x_sub7,x_sub8),dim=1)
-		out = self.Phase2(x)
-	
+		# x1 & x2 = list of 5x5 neighboring tiles
+ 
+		outputs_subnetworks = [net(x1[:,i,...], x2[:,i,...]) for i, net in enumerate(self.subnetworks)]
+		#print('NETWORK - len outputs_subnetworks',len(outputs_subnetworks))
+		#print('NETWORK - outputs_subnetworks[0] shape',outputs_subnetworks[0].shape)
+		out = torch.cat((outputs_subnetworks), dim = 1)
+		#print('NETWORK - out shape',out.shape)
+		out = self.Phase2(out)
+		
 		return out
-
-
-
-
-# Network similar to fastAI (with shared weights)
-class MyNetworkFastAI2(nn.Module):
-	def __init__(self):
-		super(MyNetworkFastAI2, self).__init__()
-
-		num_ftrs = 4096
-		num_classes = 4
-
-		mymodel = models.resnet50(pretrained=True)
-		self.model_class1 = nn.Sequential(*list(mymodel.children())[:-2])
-
-		self.avg_pool = nn.AdaptiveAvgPool2d(1)
-		self.max_pool = nn.AdaptiveMaxPool2d(1)
-
-		# Change output to 512 features
-		# self.fc1 = nn.Linear(num_ftrs*4, 4096)
-		# self.fc2 = nn.Linear(4096, 512)
-		# self.fc = nn.Linear(512, num_classes)
-		
-		# self.BN1 = torch.nn.BatchNorm1d(num_ftrs*4)
-		# self.BN2 = torch.nn.BatchNorm1d(4096)
-		# self.BN3 = torch.nn.BatchNorm1d(512)
-		
-		# self.drop1 = torch.nn.Dropout(p=0.25)
-		# self.drop2 = torch.nn.Dropout(p=0.25)
-		# self.drop3 = torch.nn.Dropout(p=0.5)
-
-		self.BN1 = torch.nn.BatchNorm1d(num_ftrs*4)
-		self.drop1 = torch.nn.Dropout(p=0.25)
-		self.fc1 = nn.Linear(num_ftrs*4, 4096)
-		self.BN2 = torch.nn.BatchNorm1d(4096)
-		self.drop2 = torch.nn.Dropout(p=0.25)
-		self.fc2 = nn.Linear(4096, 512)
-		self.BN3 = torch.nn.BatchNorm1d(512)
-		self.drop3 = torch.nn.Dropout(p=0.5)
-		self.fc = nn.Linear(512, num_classes)
-
-
-	def forward(self, x1, x2, x3, x4):	
-
-		avg_pool1 = self.avg_pool( self.model_class1(x1) )
-		max_pool1 = self.max_pool( self.model_class1(x1) )
-		# Added dropout
-		ftrs1 = torch.squeeze(torch.cat((avg_pool1,max_pool1),1))
-
-		avg_pool2 = self.avg_pool( self.model_class1(x2) )
-		max_pool2 = self.max_pool( self.model_class1(x2) )
-		ftrs2 = torch.squeeze(torch.cat((avg_pool2,max_pool2),1))
-
-		avg_pool3 = self.avg_pool( self.model_class1(x3) )
-		max_pool3 = self.max_pool( self.model_class1(x3) )
-		ftrs3 = torch.squeeze(torch.cat((avg_pool3,max_pool3),1))
-
-		avg_pool4 = self.avg_pool( self.model_class1(x4) )
-		max_pool4 = self.max_pool( self.model_class1(x4) )
-		ftrs4 = torch.squeeze(torch.cat((avg_pool4,max_pool4),1))
-
-		# Concatenation: ftrs size = 4096 * 4
-		concat_ftrs = torch.cat( (torch.cat( (torch.cat( (ftrs1, ftrs2), 1), ftrs3), 1), ftrs4), 1)
-		x = self.BN1(concat_ftrs)
-		x = self.drop1(x)
-		x = self.fc1(x) # 4096 output features
-		x = F.relu(x)
-		x = self.BN2(x)
-		x = self.drop2(x)
-		x = self.fc2(x) # 512 output features
-		x = F.relu(x)
-		x = self.BN3(x)
-		ftrs = self.drop3(x)
-		out = self.fc(ftrs) # 4 output features
-
-		return out, ftrs
 

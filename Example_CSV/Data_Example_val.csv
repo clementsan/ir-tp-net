@@ -1,0 +1,4 @@
+2DCorr,TargetDisparity,GroundTruth
+/path/data101_2DCorr.tiff,/path/data101_TargetDisp.tiff,/path/data101_GroundTruth.tiff
+/path/data102_2DCorr.tiff,/path/data102_TargetDisp.tiff,/path/data102_GroundTruth.tiff
+/path/data103_2DCorr.tiff,/path/data103_TargetDisp.tiff,/path/data103_GroundTruth.tiff

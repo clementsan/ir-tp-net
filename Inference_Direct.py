@@ -23,7 +23,6 @@ dict_fc_features = {
 	'Phase2': [128,64,32],
 }
 
-# Device for CUDA (pytorch 0.4.0)
 os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 # --------------------
 
@@ -41,8 +40,8 @@ def arg_parser():
 						  help='tile size')
 	options.add_argument('--adjacent_tiles_dim', type=int, default=1,
 						  help='adjacent tiles dim (e.g. 3, 5)')
-	options.add_argument('--bs', type=int, default=2000,
-						  help='Batch size (default 2000)')
+	options.add_argument('--bs', type=int, default=5000,
+						  help='Batch size (default 5000)')
 	return parser
 
 
@@ -71,43 +70,45 @@ def main(args=None):
 
 	# Initialize variables
 	InputFile_Shape = Subject['Combined'].shape
-	print('InputFile_Shape: ',InputFile_Shape)
-
 	NbTiles_H = InputFile_Shape[1] // TileSize
 	NbTiles_W = InputFile_Shape[2] // TileSize
 	NbImageLayers = InputFile_Shape[3]
 	InputDepth = NbImageLayers -2
-	print('NbTiles_H: ',NbTiles_H)
-	print('NbTiles_W: ',NbTiles_W)
-	print('NbImageLayers: ',NbImageLayers)
+	print('InputFile_Shape: ', InputFile_Shape)
+	print('NbTiles_H: ', NbTiles_H)
+	print('NbTiles_W: ', NbTiles_W)
+	print('NbImageLayers: ', NbImageLayers)
+	print('InputDepth: ', InputDepth)
 
 
 	# GridSampler
 	print('\nGenerating Grid Sampler...')
-	patch_size = (AdjacentTilesDim * TileSize, AdjacentTilesDim * TileSize, NbImageLayers)
-	patch_overlap = (0,0,0)
-
+	patch_size, patch_overlap, padding_mode = utils.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
+	print('patch_size: ',patch_size)
+	print('patch_overlap: ',patch_overlap)
+	print('padding_mode: ',padding_mode)
 	
 
 	grid_sampler = tio.inference.GridSampler(
 		subject = Subject,
 		patch_size = patch_size,
 		patch_overlap = patch_overlap,
+		padding_mode = padding_mode,
 	)
 	len_grid_sampler = len(grid_sampler)
 	print('length grid_sampler', len(grid_sampler))
 
-	patch_loader = torch.utils.data.DataLoader(grid_sampler, batch_size=len_grid_sampler)
-	aggregator = tio.inference.GridAggregator(grid_sampler)
+	patch_loader = torch.utils.data.DataLoader(grid_sampler, batch_size=bs)
+	aggregator = tio.inference.GridAggregator(grid_sampler, overlap_mode = 'average')
 
-	print('Loading DNN model...')
+	print('\nLoading DNN model...')
 	model = MyParallelNetwork(InputDepth, TileSize, AdjacentTilesDim, dict_fc_features)
 	model.load_state_dict(torch.load(ModelName))
 	#print(model)
 	model.to(device)
 	model.eval()
 
-	print('Patch-based inference...')
+	print('\nPatch-based inference...')
 	since2 = time.time()
 	#model = nn.Identity().eval()
 	with torch.no_grad():
@@ -122,40 +123,44 @@ def main(args=None):
 
 			input1_tiles = input1_tiles.to(device)
 			input2_tiles_real = input2_tiles_real.to(device)
-			#GroundTruth_real = GroundTruth_real.to(self.device)
+			GroundTruth_real = GroundTruth_real.to(device)
 			# Reducing last dimension to compute loss
 			#GroundTruth_real = torch.squeeze(GroundTruth_real, dim=2)
 
 			print('\t\t input1_tiles shape: ', input1_tiles.shape)
 			print('\t\t input2_tiles_real shape:', input2_tiles_real.shape)
+			print('\t\t GroundTruth_real shape:', GroundTruth_real.shape)
 
 			outputs = model(input1_tiles, input2_tiles_real)
 			print('\t\t outputs shape: ',outputs.shape)
-			print('outputs device', outputs.device)
+			print('\t\t outputs device', outputs.device)
 
-			# Reshape outputs
+			# Reshape outputs to match location dimensions
 			outputs_reshape = torch.reshape(outputs,[outputs.shape[0],1,1,1,1])
 			print('\t\t outputs_reshape shape: ',outputs_reshape.shape)
+			print('\t\t outputs_reshape device', outputs_reshape.device)
 
-			locations = patches_batch[tio.LOCATION]
-			print('\t\t location shape: ', locations.shape)
-			print('\t\t location: ', locations)
+			input_location = patches_batch[tio.LOCATION]
+			print('\t\t input_location shape: ', input_location.shape)
+			print('\t\t input_location device', input_location.device)
+			print('\t\t input_location type: ', input_location.dtype)
+			print('\t\t input_location: ', input_location)
 
-			# Reshape locations to fit output image size (78,62,1)
-			# - Divide by TileSize
-			# - Depth = 1
-			locations_new = torch.div(locations, TileSize, rounding_mode='floor')
-			locations_new[:,-1]=1
-			print('\t\t location_new shape: ', locations_new.shape)
-			print('\t\t location_new: ', locations_new)
+			# Reshape input_location to prediction_location, to fit output image size (78,62,1)
+			pred_location = utils.prediction_patch_location(input_location, TileSize, AdjacentTilesDim)
+			print('\t\t pred_location shape: ', pred_location.shape)
+			print('\t\t pred_location: ', pred_location)
 
-			aggregator.add_batch(outputs_reshape, locations_new)
+			# Add batch with location to TorchIO aggregator
+			aggregator.add_batch(outputs_reshape, pred_location)
 
+	# output_tensor shape [1170, 930, 122]
 	output_tensor = aggregator.get_output_tensor()
 	print('output_tensor type: ', output_tensor.dtype)
 	print('output_tensor device', output_tensor.device)
 	print('output_tensor shape: ', output_tensor.shape)
 
+	# Extract real information of interest [78,62]
 	output_tensor_real = output_tensor[0,:NbTiles_H,:NbTiles_W,0]
 	print('output_tensor_real shape: ', output_tensor_real.shape)
 

@@ -46,10 +46,10 @@ ModelName = './pytorch_model_Tiles' + AdjacentGrid + '.h5'
 
 # Data sampling parameters
 num_workers = 10
-queue_length = round(62*78/AdjacentTilesDim)*num_workers
-samples_per_volume = round(62*78/AdjacentTilesDim) # 62*78 # 4836
-# queue_length = 62*78*num_workers*2
-# samples_per_volume = 62*78 # 62*78 # 4836
+#queue_length = round(62*78/(AdjacentTilesDim*AdjacentTilesDim))*num_workers
+#samples_per_volume = round(62*78/(AdjacentTilesDim*AdjacentTilesDim)) # 62*78 # 4836
+queue_length = 62*78*num_workers*2
+samples_per_volume = 62*78 # 62*78 # 4836
 
 # Neural network parameters
 # Model - FC layers
@@ -59,7 +59,7 @@ dict_fc_features = {
 }
 # Batch size
 #bs = round(2000/(AdjacentTilesDim*AdjacentTilesDim))
-bs = 3000
+bs = 400
 # Learning rate
 lr = 5e-3
 # Number Epochs
@@ -95,8 +95,8 @@ def main():
 
 	print('\n--- Loading data... ---')
 
-	Subjects_list_train = dataset.GenerateTIOSubjectsList(CSVFile_train)
-	Subjects_list_test = dataset.GenerateTIOSubjectsList(CSVFile_val)
+	File_list_train, TIOSubjects_list_train = dataset.GenerateTIOSubjectsList(CSVFile_train)
+	File_list_test, TIOSubjects_list_test = dataset.GenerateTIOSubjectsList(CSVFile_val)
 	
 	# torchIO transforms
 	TIOtransforms = [
@@ -105,11 +105,11 @@ def main():
 	TIOtransform = tio.Compose(TIOtransforms)
 
 	# TIO dataset
-	Subjects_dataset_train = tio.SubjectsDataset(Subjects_list_train, transform=TIOtransform)
-	Subjects_dataset_test = tio.SubjectsDataset(Subjects_list_test, transform=None)
+	TIOSubjects_dataset_train = tio.SubjectsDataset(TIOSubjects_list_train, transform=TIOtransform)
+	TIOSubjects_dataset_test = tio.SubjectsDataset(TIOSubjects_list_test, transform=None)
 
-	print('Training set:', len(Subjects_dataset_train), 'subjects')
-	print('Validation set:', len(Subjects_dataset_test), 'subjects')
+	print('Training set:', len(TIOSubjects_dataset_train), 'subjects')
+	print('Validation set:', len(TIOSubjects_dataset_test), 'subjects')
 
 	time_elapsed = time.time() - since
 	print('--- Finish loading data in {:.0f}m {:.0f}s---'.format(time_elapsed // 60, time_elapsed % 60))
@@ -118,13 +118,13 @@ def main():
 
 	# ------------------
 	# Subject visualization
-	print('\n--- Subject Info... ---')
-	MySubject = Subjects_dataset_train[0]
-	print('MySubject: ',MySubject)
-	print('MySubject.shape: ',MySubject.shape)
-	print('MySubject.spacing: ',MySubject.spacing)
-	print('MySubject.spatial_shape: ',MySubject.spatial_shape)
-	print('MySubject history: ',MySubject.get_composed_history())
+	print('\n--- TIOSubject Info... ---')
+	MyTIOSubject = TIOSubjects_dataset_train[0]
+	print('MySubject: ',MyTIOSubject)
+	print('MySubject.shape: ',MyTIOSubject.shape)
+	print('MySubject.spacing: ',MyTIOSubject.spacing)
+	print('MySubject.spatial_shape: ',MyTIOSubject.spatial_shape)
+	print('MySubject history: ',MyTIOSubject.get_composed_history())
 
 	# ------------------
 
@@ -132,7 +132,7 @@ def main():
 	# ------------------
 	# Patch-based pipeline...
 	patch_size = (AdjacentTilesDim * TileSize, AdjacentTilesDim * TileSize, NbImageLayers)
-	# patch_overlap = (TileSize * 2, TileSize * 2, NbImageLayers)
+	patch_overlap = (TileSize * 2, TileSize * 2, NbImageLayers)
 
 	sampler_train = tio.data.GridSampler(patch_size=patch_size)
 	sampler_test = tio.data.GridSampler(patch_size=patch_size)
@@ -140,7 +140,7 @@ def main():
 	# sampler_test = tio.data.GridSampler(patch_size=patch_size, patch_overlap=patch_overlap)
 
 	patches_queue_train = tio.Queue(
-		subjects_dataset = Subjects_dataset_train,
+		subjects_dataset = TIOSubjects_dataset_train,
 		max_length = queue_length,
 		samples_per_volume = samples_per_volume,
 		sampler = sampler_train,
@@ -149,7 +149,7 @@ def main():
 		shuffle_patches = True,
 	)
 	patches_queue_test = tio.Queue(
-		subjects_dataset = Subjects_dataset_test,
+		subjects_dataset = TIOSubjects_dataset_test,
 		max_length = queue_length,
 		samples_per_volume = samples_per_volume,
 		sampler = sampler_test,

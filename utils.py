@@ -95,3 +95,67 @@ def prepare_data(t_input, nb_image_layers, tile_size, adjacent_tiles_dim):
 	# print('t_GroundTruth_real.shape: ', t_GroundTruth_real.shape)
 
 	return t_input1_tiles, t_input2_tiles_real, t_GroundTruth_real
+
+# Initialize TorchIO GridSampler variables
+def initialize_gridsampler_variables(nb_image_layers, tile_size, adjacent_tiles_dim, padding_mode=None):
+	# Define patch_size
+	patch_size = (adjacent_tiles_dim * tile_size, adjacent_tiles_dim * tile_size, nb_image_layers)
+
+	# Define padding_mode
+	#padding_mode = 'symmetric'
+
+	# Define patch_overlap
+	if (adjacent_tiles_dim == 1):
+		patch_overlap = (0,0,0)
+	elif (adjacent_tiles_dim == 3):
+		# patch_overlap = (30,30,0)
+		patch_overlap = (2*tile_size,2*tile_size,0)
+	elif (adjacent_tiles_dim == 5):
+		# patch_overlap = (60,60,0)
+		patch_overlap = (4*tile_size,4*tile_size,0)
+	else:
+		print("Error initialize_gridsampler_variables - adjacent_tiles_dim")
+		sys.exit()	
+	# print('patch_size: ',patch_size)
+	# print('patch_overlap: ',patch_overlap)
+	# print('padding_mode: ',padding_mode)
+
+	padding_mode = padding_mode
+
+	return patch_size, patch_overlap, padding_mode
+
+# Generate TorchIO aggregator patch_location for prediction
+# Example - Input patch location for Tiles 5x5 = [   0,    0,    0,   75,   75,  122]
+# Example - Output patch location for Tiles5x5 = [ 2,  2,  0,  3,  3,  1]
+# - Use CenterTile location
+# - Divide by TileSize
+# - Depth = 1
+def prediction_patch_location(input_location, tile_size, adjacent_tiles_dim):
+
+	if (adjacent_tiles_dim == 1):
+		output_location = input_location
+	elif (adjacent_tiles_dim == 3):
+		#CenterTile_Update = torch.tensor([15,15,0,-15,-15,0], dtype=torch.int64)
+		CenterTile_Update = torch.tensor([tile_size,tile_size,0,-tile_size,-tile_size,0], dtype=torch.int64)
+		output_location = input_location + CenterTile_Update[None,:]
+	elif (adjacent_tiles_dim == 5):
+		#CenterTile_Update = torch.tensor([30,30,0,-30,-30,0], dtype=torch.int64)
+		CenterTile_Update = torch.tensor([2*tile_size,2*tile_size,0,-2*tile_size,-2*tile_size,0], dtype=torch.int64)
+		output_location = input_location + CenterTile_Update[None,:]
+	else:
+		print("Error prediction_patch_location - adjacent_tiles_dim")
+		sys.exit()	
+	
+	# print('\t\t output_location shape: ', output_location.shape)
+	# print('\t\t output_location: ', output_location)
+
+	# Divide by tile_size
+	output_location = torch.div(output_location, tile_size, rounding_mode='floor')
+
+	# Update depth to 1 (from 3D volume to 2D image)
+	output_location[:,-1]=1
+
+	# print('\t\t output_location shape: ', output_location.shape)
+	# print('\t\t output_location: ', output_location)
+
+	return output_location

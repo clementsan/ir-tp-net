@@ -73,8 +73,9 @@ def prepare_data(t_input, nb_image_layers, tile_size, adjacent_tiles_dim):
 		# # torch.Size([2000, 9, 15, 15])
 		t_GroundTruth_tiles = roi_split(t_GroundTruth, tile_size, adjacent_tiles_dim)
 
-	# Generate input2_tiles_real, scaling back to 62x78 pixels
+	# Generate input2_tiles_real, t_GroundTruth_tiles_real, scaling back to 62x78 pixels
 	t_input2_tiles_real = t_input2_tiles[:,:,::tile_size,::tile_size]
+	t_GroundTruth_tiles_real = t_GroundTruth_tiles[:,:,::tile_size,::tile_size]
 	# # torch.Size([2000, 9, 1, 1])
 	# print('t_input2_tiles_real.shape: ', t_input2_tiles_real.shape)
 		
@@ -85,16 +86,18 @@ def prepare_data(t_input, nb_image_layers, tile_size, adjacent_tiles_dim):
 		IndexCenterTile = 12
 	else:
 		IndexCenterTile = 0
-	t_GroundTruth_tilescenter = t_GroundTruth_tiles[:,IndexCenterTile,...]
-	# torch.Size([2000, 15, 15])
-	t_GroundTruth_real = t_GroundTruth_tilescenter[:,::tile_size,::tile_size]
-	# torch.Size([2000, 1, 1])
+	t_GroundTruth_real_center = t_GroundTruth_tiles_real[:,IndexCenterTile,...]
+	t_input2_real_center = t_input2_tiles_real[:,IndexCenterTile,...]
 
 	# print('t_GroundTruth_tiles.shape: ', t_GroundTruth_tiles.shape)
-	# print('t_GroundTruth_tilescenter.shape: ', t_GroundTruth_tilescenter.shape)
-	# print('t_GroundTruth_real.shape: ', t_GroundTruth_real.shape)
+	# print('t_GroundTruth_tiles_real.shape: ', t_GroundTruth_tiles_real.shape)
+	# print('t_GroundTruth_real_center.shape: ', t_GroundTruth_real_center.shape)
 
-	return t_input1_tiles, t_input2_tiles_real, t_GroundTruth_real
+	# print('t_input2_tiles.shape: ', t_input2_tiles.shape)
+	# print('t_input2_tiles_real.shape: ', t_input2_tiles_real.shape)
+	# print('t_input2_real_center.shape: ', t_input2_real_center.shape)
+
+	return t_input1_tiles, t_input2_real_center, t_GroundTruth_real_center
 
 # Initialize TorchIO GridSampler variables
 # Generate patch_overlap based on adjacent_tiles_dim

@@ -42,6 +42,8 @@ def arg_parser():
 						  help='adjacent tiles dim (e.g. 3, 5)')
 	options.add_argument('--bs', type=int, default=5000,
 						  help='Batch size (default 5000)')
+	options.add_argument('--outsuffix', type=str, default='Pred_Tiles1x1_uniform',
+						  help='Output basename suffix')
 	return parser
 
 
@@ -53,6 +55,7 @@ def main(args=None):
 	TileSize = args.tile_size
 	AdjacentTilesDim = args.adjacent_tiles_dim
 	bs = args.bs
+	OutputSuffix = args.outsuffix
 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -62,7 +65,7 @@ def main(args=None):
 
 	# Creating Subject list from CSV file
 	print('\nGenerating TIO subject list...')
-	File_list, TIOSubjects_list = dataset.GenerateTIOSubjectsListFromCSV(InputCSVFile)
+	File_list, TIOSubjects_list = dataset.GenerateTIOSubjectsList(InputCSVFile)
 
 	# Initializing variables
 	print('\nInitializing variables...')
@@ -105,7 +108,7 @@ def main(args=None):
 		basename_without_ext = os.path.splitext(basename)
 		output_dir = os.path.join(os.path.dirname(dirname),'CNN_Output')
 		os.makedirs(output_dir,exist_ok = True)
-		Prediction_basename = basename.replace('_Combined.tiff','_Pred_Tiles' + AdjacentGrid + '.tiff')
+		Prediction_basename = basename.replace('_Combined.tiff', '_' + OutputSuffix + '.tiff')
 		PredictionFile = os.path.join(output_dir,Prediction_basename)
 
 		print('\n\t SubjectNb: ', i)

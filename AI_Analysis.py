@@ -20,6 +20,7 @@ import sys
 import os
 import copy
 
+from dataset import CustomImageDataset, CustomImageDatasetTIO
 from torch.utils.data import DataLoader
 import torchio as tio  
 
@@ -27,26 +28,29 @@ import torchio as tio
 from model import *
 import utils
 import dataset
+import sampler
 from network import *
 
 ######################################################################
 # Parameters
 
 # Input files
-CSVFile_train = './Example_CSV/Data_Example_train.csv'
-CSVFile_val = './Example_CSV/Data_Example_val.csv'
-
-TIOLabelTemplate = './LabelTemplate_3D_Full.tiff'
+# CSVFile_train = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_train_smallForExperiment_chimera.csv'
+# CSVFile_val = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_val_smallForExperiment_chimera.csv'
+CSVFile_train = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_train_chimera.csv'
+CSVFile_val = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_val_chimera.csv'
+Env = 'Env1_uniform'
 
 # Data parameters
 AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
 AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
-ModelName = './pytorch_model_Tiles' + AdjacentGrid + '.h5'
+ModelName = './pytorch_model_Tiles' + AdjacentGrid + '_' + Env + '.h5'
 
 # Data sampling parameters
-num_workers = 4
-#queue_length = samples_per_volume * num_workers
+num_workers = 6
+samples_per_volume = 1000
+queue_length = samples_per_volume * num_workers
 
 # Neural network parameters
 # Model - FC layers
@@ -60,10 +64,10 @@ bs = 500
 # Learning rate
 lr = 5e-3
 # Number Epochs
-nb_epochs = 15
+nb_epochs = 20
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 # Manual seed
 torch.manual_seed(42)
@@ -90,27 +94,10 @@ def main():
 	# ------------------
 	since = time.time()
 
-	
-	# Generating list of image files
-	print('\n--- Generating file dataset... ---')
-	File_list_train = dataset.GenerateFileList(CSVFile_train)
-	File_list_test = dataset.GenerateFileList(CSVFile_val)
+	print('\n--- Generating tio dataset... ---')
 
-	# Retrieve image info
-	print('\n--- Retrieving image info... ---')
-	InputFile_Shape, NbImageLayers, InputDepth = dataset.RetrieveImageInfo(File_list_train[0])
-	print('InputFile_Shape: ', InputFile_Shape)
-	print('NbImageLayers: ', NbImageLayers)
-	print('InputDepth: ', InputDepth)
-
-	# Generating label template (for torchIO sampling)
-	#print('\n--- Generating label template... ---')
-	#TIOLabelTemplate = dataset.GenerateTIOLabelTemplate(InputFile_Shape, TileSize)
-
-	# Generating list of TIOSubjects ('Combined' and 'Label' images per subject)
-	print('\n--- Generating torchIO dataset... ---')
-	TIOSubjects_list_train = dataset.GenerateTIOSubjectsListWithLabelMap(File_list_train, TIOLabelTemplate)
-	TIOSubjects_list_test = dataset.GenerateTIOSubjectsListWithLabelMap(File_list_test, TIOLabelTemplate)
+	File_list_train, TIOSubjects_list_train = dataset.GenerateTIOSubjectsList(CSVFile_train)
+	File_list_test, TIOSubjects_list_test = dataset.GenerateTIOSubjectsList(CSVFile_val)
 	
 	# torchIO transforms
 	TIOtransforms = [
@@ -131,24 +118,17 @@ def main():
 
 
 	# ------------------
-	# Subject info
+	# Subject visualization
 	print('\n--- TIOSubject Info... ---')
 	MyTIOSubject = TIOSubjects_dataset_train[0]
 	print('MySubject: ',MyTIOSubject)
 	print('MySubject.shape: ',MyTIOSubject.shape)
 	print('MySubject.spacing: ',MyTIOSubject.spacing)
 	print('MySubject.spatial_shape: ',MyTIOSubject.spatial_shape)
+	print('MySubject.spatial_shape.type: ',type(MyTIOSubject.spatial_shape))
 	print('MySubject history: ',MyTIOSubject.get_composed_history())
 	# ------------------
 
-	# ------------------
-	# Network info 
-	print('\n--- Network Info... ---')
-	print('AdjacentGrid: ', AdjacentGrid)
-	print('ModelName: ', ModelName)
-	print('FC Features - Phase1: ', dict_fc_features['Phase1'])
-	print('FC Features - Phase2: ', dict_fc_features['Phase2'])
-	# ------------------
 
 	# ------------------
 	# Variable initialization
@@ -164,14 +144,15 @@ def main():
 	print('NbTiles_W: ', NbTiles_W)
 	print('NbImageLayers: ', NbImageLayers)
 	print('InputDepth: ', InputDepth)
-
-	patch_size, patch_overlap, padding_mode = utils.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
-	print('patch_size: ',patch_size)
-	print('patch_overlap: ',patch_overlap)
-	print('padding_mode: ',padding_mode)
 	
 	# - - - - - - - - - - - - - -
 	# Training with GridSampler
+
+	# patch_size, patch_overlap, padding_mode = utils.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
+	# print('patch_size: ',patch_size)
+	# print('patch_overlap: ',patch_overlap)
+	# print('padding_mode: ',padding_mode)
+
 	# example_grid_sampler = tio.data.GridSampler(
 	# 	subject = MyTIOSubject,
 	# 	patch_size = patch_size,
@@ -183,7 +164,6 @@ def main():
 	# print('samples_per_volume', samples_per_volume)
 	# print('queue_length', queue_length)
 
-
 	# sampler_train = tio.data.GridSampler(
 	# 	patch_size = patch_size,
 	# 	patch_overlap = patch_overlap,
@@ -194,28 +174,29 @@ def main():
 	# 	patch_overlap = patch_overlap,
 	# 	padding_mode = padding_mode,
 	# )
-	
-
 	# - - - - - - - - - - - - - -
-	# Training with LabelSampler
-	probabilities = {0: 0, 1: 1}
-	samples_per_volume = 100
-	queue_length = samples_per_volume * num_workers
+	
+	# - - - - - - - - - - - - - -
+	# Training with UniformSampler
+
+	patch_size, patch_overlap, padding_mode = utils.initialize_uniformsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
+	print('patch_size: ',patch_size)
+	print('patch_overlap: ',patch_overlap)
+	print('padding_mode: ',padding_mode)
 	print('samples_per_volume', samples_per_volume)
 	print('queue_length', queue_length)
 
-	sampler_train = tio.data.LabelSampler(
+	sampler_train = sampler.MyUniformSampler(
 		patch_size = patch_size,
-		#label_name = 'Mask',
-		label_probabilities = probabilities,
+		tile_size = TileSize,
 	)
-	sampler_test = tio.data.LabelSampler(
+	sampler_test = sampler.MyUniformSampler(
 		patch_size = patch_size,
-		#label_name = 'Mask',
-		label_probabilities = probabilities,
+		tile_size = TileSize,
 	)
+
 	# - - - - - - - - - - - - - -
-	
+
 	patches_queue_train = tio.Queue(
 		subjects_dataset = TIOSubjects_dataset_train,
 		max_length = queue_length,
@@ -265,7 +246,7 @@ def main():
 	print('\n --- Check patch Input sizes ---')
 	patches_batch = next(iter(patches_loader_dict['val']))
 	inputs = patches_batch['Combined'][tio.DATA]
-
+	locations = patches_batch[tio.LOCATION]
 
 	input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,NbImageLayers,TileSize,AdjacentTilesDim)
 
@@ -273,6 +254,8 @@ def main():
 	print('input1_tiles.shape: ', input1_tiles.shape)
 	print('input2_tiles_real.shape: ', input2_tiles_real.shape)
 	print('GroundTruth_real.shape: ', GroundTruth_real.shape)
+	print('location.shape: ', locations.shape)
+	print('location[10]: ', locations[:10])
 	
 
 	# print('\n --- Plot first subject from batch ---')

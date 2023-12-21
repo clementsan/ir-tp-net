@@ -97,7 +97,7 @@ class Model(object):
 				# Iterate over data.
 				#for inputs1, inputs2, GroundTruth in dataloaders[phase]:
 				for patch_idx, patches_batch in enumerate(dataloaders[phase]):
-					# print('\t patch_idx: ', patch_idx)
+					print('\t patch_idx: ', patch_idx)
 					inputs = patches_batch['Combined'][tio.DATA]
 
 					#print('\t\t Preparing data...')

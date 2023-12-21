@@ -40,16 +40,12 @@ CSVFile_val = './Example_CSV/Data_Example_val.csv'
 # Data parameters
 AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
-NbImageLayers = 122
 AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
 ModelName = './pytorch_model_Tiles' + AdjacentGrid + '.h5'
 
 # Data sampling parameters
-num_workers = 10
-#queue_length = round(62*78/(AdjacentTilesDim*AdjacentTilesDim))*num_workers
-#samples_per_volume = round(62*78/(AdjacentTilesDim*AdjacentTilesDim)) # 62*78 # 4836
-queue_length = 62*78*num_workers*2
-samples_per_volume = 62*78 # 62*78 # 4836
+num_workers = 6
+#queue_length = samples_per_volume * num_workers
 
 # Neural network parameters
 # Model - FC layers
@@ -59,7 +55,7 @@ dict_fc_features = {
 }
 # Batch size
 #bs = round(2000/(AdjacentTilesDim*AdjacentTilesDim))
-bs = 400
+bs = 500
 # Learning rate
 lr = 5e-3
 # Number Epochs
@@ -93,7 +89,7 @@ def main():
 	# ------------------
 	since = time.time()
 
-	print('\n--- Loading data... ---')
+	print('\n--- Generating tio dataset... ---')
 
 	File_list_train, TIOSubjects_list_train = dataset.GenerateTIOSubjectsList(CSVFile_train)
 	File_list_test, TIOSubjects_list_test = dataset.GenerateTIOSubjectsList(CSVFile_val)
@@ -125,19 +121,51 @@ def main():
 	print('MySubject.spacing: ',MyTIOSubject.spacing)
 	print('MySubject.spatial_shape: ',MyTIOSubject.spatial_shape)
 	print('MySubject history: ',MyTIOSubject.get_composed_history())
-
 	# ------------------
 
 
 	# ------------------
-	# Patch-based pipeline...
-	patch_size = (AdjacentTilesDim * TileSize, AdjacentTilesDim * TileSize, NbImageLayers)
-	patch_overlap = (TileSize * 2, TileSize * 2, NbImageLayers)
+	# Variable initialization
+	print('\n--- Variable initialization... ---')
+	MyTIOSubject = TIOSubjects_dataset_train[0]
+	InputFile_Shape = MyTIOSubject['Combined'].shape
+	NbTiles_H = InputFile_Shape[1] // TileSize
+	NbTiles_W = InputFile_Shape[2] // TileSize
+	NbImageLayers = InputFile_Shape[3]
+	InputDepth = NbImageLayers -2
+	print('InputFile_Shape: ', InputFile_Shape)
+	print('NbTiles_H: ', NbTiles_H)
+	print('NbTiles_W: ', NbTiles_W)
+	print('NbImageLayers: ', NbImageLayers)
+	print('InputDepth: ', InputDepth)
 
-	sampler_train = tio.data.GridSampler(patch_size=patch_size)
-	sampler_test = tio.data.GridSampler(patch_size=patch_size)
-	# sampler_train = tio.data.GridSampler(patch_size=patch_size, patch_overlap=patch_overlap)
-	# sampler_test = tio.data.GridSampler(patch_size=patch_size, patch_overlap=patch_overlap)
+	patch_size, patch_overlap, padding_mode = utils.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
+	print('patch_size: ',patch_size)
+	print('patch_overlap: ',patch_overlap)
+	print('padding_mode: ',padding_mode)
+	
+	example_grid_sampler = tio.data.GridSampler(
+		subject = MyTIOSubject,
+		patch_size = patch_size,
+		patch_overlap = patch_overlap,
+		padding_mode = padding_mode,
+	)
+	samples_per_volume = len(example_grid_sampler)
+	queue_length = samples_per_volume * num_workers
+	print('samples_per_volume', samples_per_volume)
+	print('queue_length', queue_length)
+
+
+	sampler_train = tio.data.GridSampler(
+		patch_size = patch_size,
+		patch_overlap = patch_overlap,
+		padding_mode = padding_mode,
+	)
+	sampler_test = tio.data.GridSampler(
+		patch_size = patch_size,
+		patch_overlap = patch_overlap,
+		padding_mode = padding_mode,
+	)
 
 	patches_queue_train = tio.Queue(
 		subjects_dataset = TIOSubjects_dataset_train,

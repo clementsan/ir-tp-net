@@ -34,34 +34,42 @@ from network import *
 # Parameters
 
 # Input files
-path = './Example_CSV/'
-CSVBaseName = 'Data_Example_'
 CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
 # Data parameters
-NeighboringTiles = 5 # for 3x3, or 5x5 adjacent tiles
+AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
 NbImageLayers = 122
-Neighboringrid = str(NeighboringTiles) + 'x' + str(NeighboringTiles)
-ModelName = './pytorch_model_Tiles' + Neighboringrid + '.h5'
+AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
+ModelName = './pytorch_model_Tiles' + AdjacentGrid + '.h5'
 
 # Data sampling parameters
-queue_length = 62*78*NeighboringTiles # 29016
-#samples_per_volume = round(62*78/NeighboringTiles) # 62*78 # 4836
-samples_per_volume = 62*78 # 62*78 # 4836
-num_workers = 6
+num_workers = 10
+queue_length = round(62*78/AdjacentTilesDim)*num_workers
+samples_per_volume = round(62*78/AdjacentTilesDim) # 62*78 # 4836
+# queue_length = 62*78*num_workers*2
+# samples_per_volume = 62*78 # 62*78 # 4836
 
 # Neural network parameters
+# Model - FC layers
+dict_fc_features = {
+	'Phase1': [2048,512,256,64],
+	'Phase2': [128,64,32],
+}
 # Batch size
-bs = 2000 
+#bs = round(2000/(AdjacentTilesDim*AdjacentTilesDim))
+bs = 3000
 # Learning rate
 lr = 5e-3
 # Number Epochs
-nb_epochs = 40
+nb_epochs = 15
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+# Manual seed
+torch.manual_seed(42)
 ######################################################################
 
 
@@ -123,10 +131,14 @@ def main():
 
 	# ------------------
 	# Patch-based pipeline...
-	patch_size = (NeighboringTiles * TileSize, NeighboringTiles * TileSize, NbImageLayers)
+	patch_size = (AdjacentTilesDim * TileSize, AdjacentTilesDim * TileSize, NbImageLayers)
+	# patch_overlap = (TileSize * 2, TileSize * 2, NbImageLayers)
+
 	sampler_train = tio.data.GridSampler(patch_size=patch_size)
 	sampler_test = tio.data.GridSampler(patch_size=patch_size)
-	
+	# sampler_train = tio.data.GridSampler(patch_size=patch_size, patch_overlap=patch_overlap)
+	# sampler_test = tio.data.GridSampler(patch_size=patch_size, patch_overlap=patch_overlap)
+
 	patches_queue_train = tio.Queue(
 		subjects_dataset = Subjects_dataset_train,
 		max_length = queue_length,
@@ -178,7 +190,7 @@ def main():
 	inputs = patches_batch['Combined'][tio.DATA]
 
 
-	input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,NbImageLayers,TileSize,NeighboringTiles)
+	input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,NbImageLayers,TileSize,AdjacentTilesDim)
 
 	print('inputs.shape: ', inputs.shape)
 	print('input1_tiles.shape: ', input1_tiles.shape)
@@ -229,7 +241,7 @@ def main():
 
 	# ----------------------
 	# Create model
-	model_ft = Model(writer, NbImageLayers, TileSize, NeighboringTiles, ModelName)
+	model_ft = Model(writer, NbImageLayers, TileSize, AdjacentTilesDim, ModelName, dict_fc_features)
 
 	# Tensorboard - add graph
 	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])

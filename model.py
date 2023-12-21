@@ -23,15 +23,16 @@ from network import *
 import utils
 
 class Model(object):
-	def __init__(self, writer, nb_image_layers, tile_size, neighboring_tiles, model_name):
+	def __init__(self, writer, nb_image_layers, tile_size, adjacent_tiles_dim, model_name, dict_fc_features):
 
 		self.writer = writer
 		self.nb_image_layers = nb_image_layers
 		self.tile_size = tile_size
-		self.neighboring_tiles = neighboring_tiles
+		self.adjacent_tiles_dim = adjacent_tiles_dim
 		self.InputDepth = self.nb_image_layers - 2
 		# Model name - for saving
 		self.model_name = model_name
+		self.dict_fc_features = dict_fc_features
 
 		# Criterion MSE -> loss RMSE
 		self.criterion = nn.MSELoss()
@@ -44,7 +45,7 @@ class Model(object):
 	def create_model(self):
 		
 		# Dynamic network with parallel subnets (e.g. for 3x3, 5x5 neighboring tiles)
-		self.model = MyParallelNetwork(self.InputDepth, self.tile_size, self.neighboring_tiles)
+		self.model = MyParallelNetwork(self.InputDepth, self.tile_size, self.adjacent_tiles_dim, self.dict_fc_features)
 		
 		print(self.model)
 
@@ -62,10 +63,11 @@ class Model(object):
 		# 	param.requires_grad = True
 
 		# Observe that all parameters are being optimized
-		optimizer = optim.SGD(self.model.parameters(), lr=lr, momentum=0.9)
+		#optimizer = optim.SGD(self.model.parameters(), lr=lr, momentum=0.9)
+		optimizer = optim.Adam(self.model.parameters(), lr=lr, betas=(0.9, 0.999))
 
 		# Decay LR by a factor of 0.1 every 7 epochs
-		scheduler = lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
+		#scheduler = lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
 
 		best_model_wts = copy.deepcopy(self.model.state_dict())
 		#best_acc = 0.0
@@ -83,7 +85,7 @@ class Model(object):
 			# Each epoch has a training and validation phase
 			for phase in ['train', 'val']:
 				if phase == 'train':
-					scheduler.step()
+					#scheduler.step()
 					self.model.train()  # Set model to training mode
 				else:
 					self.model.eval()   # Set model to evaluate mode
@@ -97,34 +99,39 @@ class Model(object):
 					print('\t patch_idx: ', patch_idx)
 					inputs = patches_batch['Combined'][tio.DATA]
 
-					print('\t\t Preparing data...')
-					input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,self.nb_image_layers,self.tile_size,self.neighboring_tiles)
-					print('\t\t Preparing data - done -')
+					#print('\t\t Preparing data...')
+					input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,self.nb_image_layers,self.tile_size,self.adjacent_tiles_dim)
+					#print('\t\t Preparing data - done -')
 					
 					input1_tiles = input1_tiles.to(self.device)
 					input2_tiles_real = input2_tiles_real.to(self.device)
 					GroundTruth_real = GroundTruth_real.to(self.device)
-					#print('\t\t GroundTruth.shape: ', GroundTruth.shape)
-
+					# Reducing last dimension to compute loss
+					GroundTruth_real = torch.squeeze(GroundTruth_real, dim=2)
+					
 					# zero the parameter gradients
 					optimizer.zero_grad()
 
 					# forward
 					# track history if only in train
 					with torch.set_grad_enabled(phase == 'train'):
-
+						#print('\t\t DNN - forward...')
 						# Provide two inputs to model
 						outputs = self.model(input1_tiles, input2_tiles_real)
-						#_, preds = torch.max(outputs, 1)
+						#print('\t\t DNN - computing loss...')
 						loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))
 
 						# backward + optimize only if in training phase
 						if phase == 'train':
+							#print('\t\t DNN - backward...')
 							loss.backward()
 							optimizer.step()
-
+						#print('\t patch - done -')
+					
 					# statistics
+					#print('\t running_loss...')
 					running_loss += loss.item() * input1_tiles.size(0)
+					#print('\t running_loss - done -')
 					#running_corrects += torch.sum(preds == labels.data)
 
 				epoch_loss = running_loss / len(dataloaders[phase].dataset) 
@@ -134,6 +141,7 @@ class Model(object):
 
 				print('{} Loss: {:.4f} Lr: {:.6f}'.format(
 					phase, epoch_loss, curr_lr))
+
 
 				# Append values for plots
 				if phase == 'train':
@@ -193,15 +201,17 @@ class Model(object):
 				print('\t patch_idx: ', patch_idx)
 				inputs = patches_batch['Combined'][tio.DATA]
 
-				print('\t\t Preparing data...')
-				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs, self.nb_image_layers, self.tile_size, self.neighboring_tiles)
-				print('\t\t Preparing data - done -')
+				#print('\t\t Preparing data...')
+				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs, self.nb_image_layers, self.tile_size, self.adjacent_tiles_dim)
+				#print('\t\t Preparing data - done -')
 
 				#print("DataLoader iteration: %d" % i)
 				input1_tiles = input1_tiles.to(self.device)
 				input2_tiles_real = input2_tiles_real.to(self.device)
 				GroundTruth_real = GroundTruth_real.to(self.device)
-					
+				# Reducing last dimension to compute loss
+				GroundTruth_real = torch.squeeze(GroundTruth_real, dim=2)
+						
 				outputs = self.model(input1_tiles, input2_tiles_real)
 
 				loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))

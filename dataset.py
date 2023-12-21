@@ -17,14 +17,14 @@ def GenerateTIOSubjectsList(CSVFile):
 
 	df = pd.read_csv(CSVFile, sep=',')
 	File_list = df['Combined'].tolist()
-	Subjects = []
+	TIOSubjects_list = []
 
 	for idx in range(len(File_list)):		
-		Subject = tio.Subject(
+		TIOSubject = tio.Subject(
 			Combined = tio.ScalarImage(File_list[idx]),
 			)
-		Subjects.append(Subject)
-	return Subjects
+		TIOSubjects_list.append(TIOSubject)
+	return File_list, TIOSubjects_list
 
 
 # old - unused

@@ -20,7 +20,6 @@ import sys
 import os
 import copy
 
-from dataset import CustomImageDataset, CustomImageDatasetTIO
 from torch.utils.data import DataLoader
 import torchio as tio  
 
@@ -37,6 +36,8 @@ from network import *
 CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
+TIOLabelTemplate = './LabelTemplate_3D_Full.tiff'
+
 # Data parameters
 AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
@@ -44,7 +45,7 @@ AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
 ModelName = './pytorch_model_Tiles' + AdjacentGrid + '.h5'
 
 # Data sampling parameters
-num_workers = 6
+num_workers = 4
 #queue_length = samples_per_volume * num_workers
 
 # Neural network parameters
@@ -89,10 +90,27 @@ def main():
 	# ------------------
 	since = time.time()
 
-	print('\n--- Generating tio dataset... ---')
+	
+	# Generating list of image files
+	print('\n--- Generating file dataset... ---')
+	File_list_train = dataset.GenerateFileList(CSVFile_train)
+	File_list_test = dataset.GenerateFileList(CSVFile_val)
 
-	File_list_train, TIOSubjects_list_train = dataset.GenerateTIOSubjectsList(CSVFile_train)
-	File_list_test, TIOSubjects_list_test = dataset.GenerateTIOSubjectsList(CSVFile_val)
+	# Retrieve image info
+	print('\n--- Retrieving image info... ---')
+	InputFile_Shape, NbImageLayers, InputDepth = dataset.RetrieveImageInfo(File_list_train[0])
+	print('InputFile_Shape: ', InputFile_Shape)
+	print('NbImageLayers: ', NbImageLayers)
+	print('InputDepth: ', InputDepth)
+
+	# Generating label template (for torchIO sampling)
+	#print('\n--- Generating label template... ---')
+	#TIOLabelTemplate = dataset.GenerateTIOLabelTemplate(InputFile_Shape, TileSize)
+
+	# Generating list of TIOSubjects ('Combined' and 'Label' images per subject)
+	print('\n--- Generating torchIO dataset... ---')
+	TIOSubjects_list_train = dataset.GenerateTIOSubjectsListWithLabelMap(File_list_train, TIOLabelTemplate)
+	TIOSubjects_list_test = dataset.GenerateTIOSubjectsListWithLabelMap(File_list_test, TIOLabelTemplate)
 	
 	# torchIO transforms
 	TIOtransforms = [
@@ -113,7 +131,7 @@ def main():
 
 
 	# ------------------
-	# Subject visualization
+	# Subject info
 	print('\n--- TIOSubject Info... ---')
 	MyTIOSubject = TIOSubjects_dataset_train[0]
 	print('MySubject: ',MyTIOSubject)
@@ -123,6 +141,14 @@ def main():
 	print('MySubject history: ',MyTIOSubject.get_composed_history())
 	# ------------------
 
+	# ------------------
+	# Network info 
+	print('\n--- Network Info... ---')
+	print('AdjacentGrid: ', AdjacentGrid)
+	print('ModelName: ', ModelName)
+	print('FC Features - Phase1: ', dict_fc_features['Phase1'])
+	print('FC Features - Phase2: ', dict_fc_features['Phase2'])
+	# ------------------
 
 	# ------------------
 	# Variable initialization
@@ -144,29 +170,52 @@ def main():
 	print('patch_overlap: ',patch_overlap)
 	print('padding_mode: ',padding_mode)
 	
-	example_grid_sampler = tio.data.GridSampler(
-		subject = MyTIOSubject,
-		patch_size = patch_size,
-		patch_overlap = patch_overlap,
-		padding_mode = padding_mode,
-	)
-	samples_per_volume = len(example_grid_sampler)
+	# - - - - - - - - - - - - - -
+	# Training with GridSampler
+	# example_grid_sampler = tio.data.GridSampler(
+	# 	subject = MyTIOSubject,
+	# 	patch_size = patch_size,
+	# 	patch_overlap = patch_overlap,
+	# 	padding_mode = padding_mode,
+	# )
+	# samples_per_volume = len(example_grid_sampler)
+	# queue_length = samples_per_volume * num_workers
+	# print('samples_per_volume', samples_per_volume)
+	# print('queue_length', queue_length)
+
+
+	# sampler_train = tio.data.GridSampler(
+	# 	patch_size = patch_size,
+	# 	patch_overlap = patch_overlap,
+	# 	padding_mode = padding_mode,
+	# )
+	# sampler_test = tio.data.GridSampler(
+	# 	patch_size = patch_size,
+	# 	patch_overlap = patch_overlap,
+	# 	padding_mode = padding_mode,
+	# )
+	
+
+	# - - - - - - - - - - - - - -
+	# Training with LabelSampler
+	probabilities = {0: 0, 1: 1}
+	samples_per_volume = 100
 	queue_length = samples_per_volume * num_workers
 	print('samples_per_volume', samples_per_volume)
 	print('queue_length', queue_length)
 
-
-	sampler_train = tio.data.GridSampler(
+	sampler_train = tio.data.LabelSampler(
 		patch_size = patch_size,
-		patch_overlap = patch_overlap,
-		padding_mode = padding_mode,
+		#label_name = 'Mask',
+		label_probabilities = probabilities,
 	)
-	sampler_test = tio.data.GridSampler(
+	sampler_test = tio.data.LabelSampler(
 		patch_size = patch_size,
-		patch_overlap = patch_overlap,
-		padding_mode = padding_mode,
+		#label_name = 'Mask',
+		label_probabilities = probabilities,
 	)
-
+	# - - - - - - - - - - - - - -
+	
 	patches_queue_train = tio.Queue(
 		subjects_dataset = TIOSubjects_dataset_train,
 		max_length = queue_length,

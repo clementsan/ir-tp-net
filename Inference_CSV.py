@@ -62,7 +62,7 @@ def main(args=None):
 
 	# Creating Subject list from CSV file
 	print('\nGenerating TIO subject list...')
-	File_list, TIOSubjects_list = dataset.GenerateTIOSubjectsList(InputCSVFile)
+	File_list, TIOSubjects_list = dataset.GenerateTIOSubjectsListFromCSV(InputCSVFile)
 
 	# Initializing variables
 	print('\nInitializing variables...')

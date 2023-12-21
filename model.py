@@ -23,7 +23,7 @@ from network import *
 import utils
 
 class Model(object):
-	def __init__(self, writer, nb_image_layers, tile_size, adjacent_tiles_dim, model_name, dict_fc_features):
+	def __init__(self, writer, nb_image_layers, tile_size, adjacent_tiles_dim, model_name, dict_fc_features, loss_name):
 
 		self.writer = writer
 		self.nb_image_layers = nb_image_layers
@@ -33,6 +33,7 @@ class Model(object):
 		# Model name - for saving
 		self.model_name = model_name
 		self.dict_fc_features = dict_fc_features
+		self.loss_name = loss_name
 
 		# Criterion MSE -> loss RMSE
 		self.criterion = nn.MSELoss()
@@ -97,7 +98,7 @@ class Model(object):
 				# Iterate over data.
 				#for inputs1, inputs2, GroundTruth in dataloaders[phase]:
 				for patch_idx, patches_batch in enumerate(dataloaders[phase]):
-					print('\t patch_idx: ', patch_idx)
+					# print('\t patch_idx: ', patch_idx)
 					inputs = patches_batch['Combined'][tio.DATA]
 
 					#print('\t\t Preparing data...')
@@ -121,7 +122,7 @@ class Model(object):
 						outputs = self.model(input1_tiles, input2_tiles_real)
 						#print('\t\t DNN - computing loss...')
 						loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))
-
+						
 						# backward + optimize only if in training phase
 						if phase == 'train':
 							#print('\t\t DNN - backward...')
@@ -134,12 +135,12 @@ class Model(object):
 					running_loss += loss.item() * input1_tiles.size(0)
 					#print('\t running_loss - done -')
 					#running_corrects += torch.sum(preds == labels.data)
+					
 
 				epoch_loss = running_loss / len(dataloaders[phase].dataset) 
 				#epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset) 
 
 				curr_lr = optimizer.param_groups[0]['lr']
-
 				print('{} Loss: {:.4f} Lr: {:.6f}'.format(
 					phase, epoch_loss, curr_lr))
 
@@ -174,7 +175,7 @@ class Model(object):
 		# Generate plots
 		plt.figure(); plt.plot(range(1,nb_epochs+1),train_loss,'k', range(1,nb_epochs+1), val_loss, 'r')
 		plt.legend(['Train Loss','Val Loss'])
-		plt.savefig(os.getcwd()+ '/loss.png')
+		plt.savefig(self.loss_name)
 
 		# plt.figure(); plt.plot(range(1,nb_epochs+1),train_acc,'k', range(1,nb_epochs+1), val_acc, 'r')
 		# plt.legend(['Train Accuracy','Val Accuracy'])

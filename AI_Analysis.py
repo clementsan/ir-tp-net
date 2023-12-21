@@ -35,17 +35,15 @@ from network import *
 # Parameters
 
 # Input files
-# CSVFile_train = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_train_smallForExperiment_chimera.csv'
-# CSVFile_val = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_val_smallForExperiment_chimera.csv'
-CSVFile_train = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_train_chimera.csv'
-CSVFile_val = '../../04_CSVFileCreation/Data_Env1_DOFFS0.014_combined_val_chimera.csv'
-Env = 'Env1_uniform'
+CSVFile_train = './Example_CSV/Data_Example_train.csv'
+CSVFile_val = './Example_CSV/Data_Example_val.csv'
 
 # Data parameters
 AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
 AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
-ModelName = './pytorch_model_Tiles' + AdjacentGrid + '_' + Env + '.h5'
+ModelName = './pytorch_model2_Tiles' + AdjacentGrid + '.h5'
+LossName = './Loss_Model2_Tiles' + AdjacentGrid + '.png'
 
 # Data sampling parameters
 num_workers = 6
@@ -62,12 +60,12 @@ dict_fc_features = {
 #bs = round(2000/(AdjacentTilesDim*AdjacentTilesDim))
 bs = 500
 # Learning rate
-lr = 5e-3
+lr = 1e-3
 # Number Epochs
-nb_epochs = 20
+nb_epochs = 15
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 # Manual seed
 torch.manual_seed(42)
@@ -77,7 +75,7 @@ torch.manual_seed(42)
 def main():
 
 
-	plt.ion()   # interactive mode
+	# plt.ion()   # interactive mode
 
 
 	######################################################################
@@ -301,7 +299,7 @@ def main():
 
 	# ----------------------
 	# Create model
-	model_ft = Model(writer, NbImageLayers, TileSize, AdjacentTilesDim, ModelName, dict_fc_features)
+	model_ft = Model(writer, NbImageLayers, TileSize, AdjacentTilesDim, ModelName, dict_fc_features, LossName)
 
 	# Tensorboard - add graph
 	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])
@@ -319,8 +317,8 @@ def main():
 	# # Evaluate on validation data
 	# model_ft.test_model(dataloaders=patches_loader_dict)
 
-	plt.ioff()
-	plt.show()
+	# plt.ioff()
+	# plt.show()
 
 if __name__ == "__main__":
 	main()

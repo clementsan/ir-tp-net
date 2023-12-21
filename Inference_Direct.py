@@ -89,7 +89,7 @@ def main(args=None):
 	print('padding_mode: ',padding_mode)
 	
 
-	grid_sampler = tio.inference.GridSampler(
+	grid_sampler = tio.data.GridSampler(
 		subject = Subject,
 		patch_size = patch_size,
 		patch_overlap = patch_overlap,
@@ -99,7 +99,7 @@ def main(args=None):
 	print('length grid_sampler', len(grid_sampler))
 
 	patch_loader = torch.utils.data.DataLoader(grid_sampler, batch_size=bs)
-	aggregator = tio.inference.GridAggregator(grid_sampler, overlap_mode = 'average')
+	aggregator = tio.data.GridAggregator(grid_sampler, overlap_mode = 'average')
 
 	print('\nLoading DNN model...')
 	model = MyParallelNetwork(InputDepth, TileSize, AdjacentTilesDim, dict_fc_features)

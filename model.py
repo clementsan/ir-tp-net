@@ -81,9 +81,10 @@ class Model(object):
 		for epoch in range(nb_epochs):
 			print('Epoch {}/{}'.format(epoch, nb_epochs - 1))
 			print('-' * 10)
-
+			
 			# Each epoch has a training and validation phase
 			for phase in ['train', 'val']:
+				time_beginepoch = time.time()
 				if phase == 'train':
 					#scheduler.step()
 					self.model.train()  # Set model to training mode
@@ -162,7 +163,8 @@ class Model(object):
 					# Save trained model
 					torch.save(self.model.state_dict(),self.model_name)
 
-			print()
+				time_epoch = time.time() - time_beginepoch
+				print('--- {} epoch in {:.2f}s---'.format(phase, time_epoch))
 
 		time_elapsed = time.time() - since
 		print('Training complete in {:.0f}m {:.0f}s'.format(

@@ -1,13 +1,7 @@
-from __future__ import print_function, division
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.optim import lr_scheduler
-import torchvision
-from torchvision import datasets, models, transforms
-
 
 class MySubNetworkPhase1(nn.Module):
 	def __init__(self, nb_image_layers, tile_size, adjacent_tiles_dim, list_fc_features):

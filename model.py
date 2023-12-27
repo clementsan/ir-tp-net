@@ -1,26 +1,25 @@
-from __future__ import print_function, division
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
-import torchvision
-from torchvision import datasets, models, transforms
+
 import numpy as np 
 import scipy
 import sys
 import os
 import copy
 import time
+
 import matplotlib.pyplot as plt
 import torchio as tio
 #from torchsummmary import summary
 
 #from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
-from layers import *
+# from layers import *
 from network import *
 import utils
+import dataset 
 
 class Model(object):
 	def __init__(self, writer, nb_image_layers, tile_size, adjacent_tiles_dim, model_name, dict_fc_features, loss_name):
@@ -44,7 +43,7 @@ class Model(object):
 
 
 	def create_model(self):
-		
+				
 		# Dynamic network with parallel subnets (e.g. for 3x3, 5x5 neighboring tiles)
 		self.model = MyParallelNetwork(self.InputDepth, self.tile_size, self.adjacent_tiles_dim, self.dict_fc_features)
 		
@@ -65,7 +64,7 @@ class Model(object):
 
 		# Observe that all parameters are being optimized
 		#optimizer = optim.SGD(self.model.parameters(), lr=lr, momentum=0.9)
-		optimizer = optim.AdamW(self.model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=0.3)
+		optimizer = optim.AdamW(self.model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=0.1)
 
 		# Decay LR by a factor of 0.1 every 7 epochs
 		#scheduler = lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
@@ -80,8 +79,8 @@ class Model(object):
 		#val_acc = []
 
 		for epoch in range(nb_epochs):
-			print('Epoch {}/{}'.format(epoch, nb_epochs - 1))
 			print('-' * 10)
+			print('Epoch {}/{}'.format(epoch, nb_epochs - 1))
 			
 			# Each epoch has a training and validation phase
 			for phase in ['train', 'val']:
@@ -102,7 +101,7 @@ class Model(object):
 					inputs = patches_batch['Combined'][tio.DATA]
 
 					#print('\t\t Preparing data...')
-					input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,self.nb_image_layers,self.tile_size,self.adjacent_tiles_dim)
+					input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,self.nb_image_layers,self.tile_size,self.adjacent_tiles_dim)
 					#print('\t\t Preparing data - done -')
 					
 					input1_tiles = input1_tiles.to(self.device)
@@ -205,7 +204,7 @@ class Model(object):
 				inputs = patches_batch['Combined'][tio.DATA]
 
 				#print('\t\t Preparing data...')
-				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs, self.nb_image_layers, self.tile_size, self.adjacent_tiles_dim)
+				input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs, self.nb_image_layers, self.tile_size, self.adjacent_tiles_dim)
 				#print('\t\t Preparing data - done -')
 
 				#print("DataLoader iteration: %d" % i)

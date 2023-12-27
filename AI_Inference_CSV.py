@@ -5,117 +5,135 @@ import sys
 import argparse
 import time 
 
+# Device for CUDA 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+
 import torch
-import torch.nn as nn
 import numpy as np
 import pandas as pd
 import torchio as tio  
 import imageio
+import yaml
 
 from network import *
 import utils
 import dataset
 
-# --------------------
-# Model - FC layers
-dict_fc_features = {
-	# Phase1- concatenation on 3rd layer
-	'Phase1': [2048,512,256,64],
-	'Phase2': [128,64,32],
-}
 
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 # --------------------
 
 def arg_parser():
-	parser = argparse.ArgumentParser(description='Inference - ')
+	parser = argparse.ArgumentParser(description='AI analysis - DNN inference')
 	required = parser.add_argument_group('Required')
-	required.add_argument('--inputCSV', type=str, required=True,
-						  help='CSV file with Combined TIFF file (multi-layer)')
-	required.add_argument('--network', type=str, required=True,
-						  help='pytorch neural network')
+	required.add_argument('--config', type=str, required=True,
+		help='YAML configuration / parameter file')
 	options = parser.add_argument_group('Options')
-	options.add_argument('--tile_size', type=int, default=15,
-						  help='tile size')
-	options.add_argument('--adjacent_tiles_dim', type=int, default=1,
-						  help='adjacent tiles dim (e.g. 3, 5)')
-	options.add_argument('--bs', type=int, default=5000,
-						  help='Batch size (default 5000)')
-	options.add_argument('--outsuffix', type=str, default='Pred_Tiles1x1_uniform',
-						  help='Output basename suffix')
+	options.add_argument('--verbose', action="store_true",
+						  help='verbose mode')
 	return parser
 
 
 #MAIN
 def main(args=None):
 	args = arg_parser().parse_args(args)
-	InputCSVFile = args.inputCSV
-	ModelName = args.network
-	TileSize = args.tile_size
-	AdjacentTilesDim = args.adjacent_tiles_dim
-	bs = args.bs
-	OutputSuffix = args.outsuffix
+	config_filename = args.config
 
+	# InputCSVFile = args.inputCSV
+	# ModelName = args.network
+	# TileSize = args.tile_size
+	# AdjacentTilesDim = args.adjacent_tiles_dim
+	# bs = args.bs
+	# OutputSuffix = args.outsuffix
+
+	# ----------
+	# Loading parameter file
+	print('\n--- Loading configuration file --- ')
+	with open(config_filename,'r') as yaml_file:
+		config_file = yaml.safe_load(yaml_file)
+
+	if args.verbose:
+		print('config_file', config_file)
+	
+	# Defining parameters
+	csv_filename = config_file['CSVFile']
+	model_filename = config_file['ModelName']
+
+	output_folder = config_file['OutputFolder']
+	output_suffix = config_file['OutputSuffix']
+
+	nb_image_layers = config_file['NbImageLayers']
+	
+	tile_size = config_file['TileSize']
+	adjacent_tiles_dim = config_file['AdjacentTilesDim']
+
+	dict_fc_features = config_file['dict_fc_features']
+	bs = config_file['bs']
+	# ----------
+	
+	# Device for CUDA 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-	print('\n--------------------')
+	# ----------
+	
+	# print('\n--------------------')
 	since1 = time.time()
 	time_inference_list = []
 
 	# Creating Subject list from CSV file
-	print('\nGenerating TIO subject list...')
-	File_list, TIOSubjects_list = dataset.GenerateTIOSubjectsList(InputCSVFile)
+	print('\n--- Generating TIO subject list --- ')
+	File_list, TIOSubjects_list = dataset.GenerateTIOSubjectsList(csv_filename)
 
 	# Initializing variables
-	print('\nInitializing variables...')
+	print('\n--- Initializing data variables --- ')
 	TIOSubjectFirst = TIOSubjects_list[0]
 	InputFile_Shape = TIOSubjectFirst['Combined'].shape
-	NbTiles_H = InputFile_Shape[1] // TileSize
-	NbTiles_W = InputFile_Shape[2] // TileSize
-	NbImageLayers = InputFile_Shape[3]
-	InputDepth = NbImageLayers -2
-	# print('InputFile_Shape: ', InputFile_Shape)
-	# print('NbTiles_H: ', NbTiles_H)
-	# print('NbTiles_W: ', NbTiles_W)
-	# print('NbImageLayers: ', NbImageLayers)
-	# print('InputDepth: ', InputDepth)
+	NbTiles_H = InputFile_Shape[1] // tile_size
+	NbTiles_W = InputFile_Shape[2] // tile_size
+	input_depth = nb_image_layers -2 
 
-	print('\nInitializing GridSampler variables...')
-	patch_size, patch_overlap, padding_mode = utils.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
-	print('patch_size: ',patch_size)
-	print('patch_overlap: ',patch_overlap)
-	print('padding_mode: ',padding_mode)
+	if args.verbose:
+		print('InputFile_Shape: ', InputFile_Shape)
+		print('NbTiles_H: ', NbTiles_H)
+		print('NbTiles_W: ', NbTiles_W)
+		print('nb_image_layers: ', nb_image_layers)
+		print('input_depth: ', input_depth)
+
+	print('\n--- Initializing GridSampler variables --- ')
+	patch_size, patch_overlap, padding_mode = dataset.initialize_gridsampler_variables(nb_image_layers, tile_size, adjacent_tiles_dim, padding_mode=None)
+	if args.verbose:
+		print('patch_size: ',patch_size)
+		print('patch_overlap: ',patch_overlap)
+		print('padding_mode: ',padding_mode)
 
 	# Loading DNN model
-	print('\nLoading DNN model...')
-	model = MyParallelNetwork(InputDepth, TileSize, AdjacentTilesDim, dict_fc_features)
-	model.load_state_dict(torch.load(ModelName))
-	#print(model)
+	print('\n--- Loading DNN model --- ')
+	model = MyParallelNetwork(input_depth, tile_size, adjacent_tiles_dim, dict_fc_features)
+	model.load_state_dict(torch.load(model_filename))
 	model.to(device)
 	model.eval()
-
-	AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
-
+	if args.verbose:
+		print(model)
 
 	# Patch-based inference
-	print('\nPatch-based inference...')
+	print('\n--- Patch-based inference --- ')
 	for i, (File, TIOSubject) in enumerate(zip(File_list, TIOSubjects_list)):
 		since2 = time.time()
 		
 		# Output filename
 		dirname, basename = os.path.split(File)
 		basename_without_ext = os.path.splitext(basename)
-		output_dir = os.path.join(os.path.dirname(dirname),'CNN_Output')
+		output_dir = os.path.join(os.path.dirname(dirname),output_folder)
 		os.makedirs(output_dir,exist_ok = True)
-		Prediction_basename = basename.replace('_Combined.tiff', '_' + OutputSuffix + '.tiff')
+		Prediction_basename = basename.replace('_Combined.tiff', '_' + output_suffix + '.tiff')
 		PredictionFile = os.path.join(output_dir,Prediction_basename)
 
 		print('\n\t SubjectNb: ', i)
-		print('\t\t FileName: ', basename)
+		print('\t FileName: ', basename)
+		if args.verbose:
+			File_Shape = TIOSubject['Combined'].shape
+			print('\t File_Shape: ', File_Shape)
+		print('\t\t Subject inference...')
 		print('\t\t PredictionFile: ', PredictionFile)
-		File_Shape = TIOSubject['Combined'].shape
-		print('\t\t File_Shape: ', File_Shape)
 		
 		# GridSampler
 		grid_sampler = tio.inference.GridSampler(
@@ -130,7 +148,6 @@ def main(args=None):
 		patch_loader = torch.utils.data.DataLoader(grid_sampler, batch_size=bs)
 		aggregator = tio.inference.GridAggregator(grid_sampler, overlap_mode = 'average')
 
-		print('\t\t Subject inference...')
 		with torch.no_grad():
 			for patch_idx, patches_batch in enumerate(patch_loader):
 				# print('\n\t\t patch_idx: ', patch_idx)
@@ -138,7 +155,7 @@ def main(args=None):
 				#print('\t\t Preparing data...')
 				inputs = patches_batch['Combined'][tio.DATA]
 				# print('\t\t inputs shape: ', inputs.shape)
-				input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,NbImageLayers,TileSize, AdjacentTilesDim)
+				input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,nb_image_layers,tile_size, adjacent_tiles_dim)
 				#print('\t\t Preparing data - done -')
 
 				input1_tiles = input1_tiles.to(device)
@@ -163,7 +180,7 @@ def main(args=None):
 				# print('\t\t input_location: ', input_location)
 
 				# Reshape input_location to prediction_location, to fit output image size (78,62,1)
-				pred_location = utils.prediction_patch_location(input_location, TileSize, AdjacentTilesDim)
+				pred_location = dataset.prediction_patch_location(input_location, tile_size, adjacent_tiles_dim)
 				# print('\t\t pred_location shape: ', pred_location.shape)
 				# print('\t\t pred_location: ', pred_location)
 
@@ -181,7 +198,6 @@ def main(args=None):
 		# print('output_tensor_real shape: ', output_tensor_real.shape)
 
 		output_np = output_tensor_real.numpy().squeeze()
-
 		# print('output_np type', output_np.dtype)
 		# print('output_np shape', output_np.shape)
 

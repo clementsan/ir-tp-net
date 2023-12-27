@@ -23,7 +23,7 @@ dict_fc_features = {
 	'Phase2': [128,64,32],
 }
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # --------------------
 
 def arg_parser():
@@ -83,7 +83,7 @@ def main(args=None):
 
 	# GridSampler
 	print('\nGenerating Grid Sampler...')
-	patch_size, patch_overlap, padding_mode = utils.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
+	patch_size, patch_overlap, padding_mode = dataset.initialize_gridsampler_variables(NbImageLayers, TileSize, AdjacentTilesDim, padding_mode=None)
 	print('patch_size: ',patch_size)
 	print('patch_overlap: ',patch_overlap)
 	print('padding_mode: ',padding_mode)
@@ -118,7 +118,7 @@ def main(args=None):
 			#print('\t\t Preparing data...')
 			inputs = patches_batch['Combined'][tio.DATA]
 			print('\t\t inputs shape: ', inputs.shape)
-			input1_tiles, input2_tiles_real, GroundTruth_real = utils.prepare_data(inputs,NbImageLayers,TileSize, AdjacentTilesDim)
+			input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,NbImageLayers,TileSize, AdjacentTilesDim)
 			#print('\t\t Preparing data - done -')
 
 			input1_tiles = input1_tiles.to(device)
@@ -147,7 +147,7 @@ def main(args=None):
 			print('\t\t input_location: ', input_location)
 
 			# Reshape input_location to prediction_location, to fit output image size (78,62,1)
-			pred_location = utils.prediction_patch_location(input_location, TileSize, AdjacentTilesDim)
+			pred_location = dataset.prediction_patch_location(input_location, TileSize, AdjacentTilesDim)
 			print('\t\t pred_location shape: ', pred_location.shape)
 			print('\t\t pred_location: ', pred_location)
 

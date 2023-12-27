@@ -20,10 +20,10 @@ import utils
 dict_fc_features = {
 	# Phase1- concatenation on 3rd layer
 	'Phase1': [2048,512,256,64],
-	'Phase2': [128,64,32],
+	'Phase2': [128,64,32,1],
 }
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # --------------------
 
 def arg_parser():

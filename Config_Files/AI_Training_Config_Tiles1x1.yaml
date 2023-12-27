@@ -1,0 +1,36 @@
+---
+# Input files
+CSVFile_train: '../Example_CSV/Data_Example_train.csv'
+CSVFile_val: '../Example_CSV/Data_Example_val.csv'
+
+# Output files
+ModelName: './pytorch_IRTPNet_Tiles1x1_WithFiltering0.0_MCDropout.h5'
+LossName: './Loss_IRTPNet_Tiles1x1_WithFiltering0.0_MCDropout.png'
+
+# Data parameters
+NbImageLayers: 124
+NbCorrLayers: 120
+TileSize: 15
+AdjacentTilesDim: 1 # 1 for 1x1, 3 for 3x3, 5 for 5x5 adjacent tiles
+
+# Data sampling parameters
+num_workers: 6
+samples_per_volume: 1000
+queue_length: 6000 # samples_per_volume * num_workers
+
+# Data filtering parameters
+DataFiltering: True
+ConfidenceThreshold: 0.0
+
+# Neural network parameters
+# Model - FC layers
+dict_fc_features:
+  Phase1: [2048,512,256,64]
+  Phase2: [128,64,32]
+# Batch size
+bs: 500
+# Learning rate
+lr: 1.0e-3
+# Number Epochs
+nb_epochs: 15
+

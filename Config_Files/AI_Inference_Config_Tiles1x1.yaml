@@ -1,0 +1,26 @@
+---
+# Input files
+CSVFile: '../Example_CSV/Data_Example_val.csv'
+ModelName: './pytorch_IRTPNet_Tiles1x1_WithFiltering0.0_MCDropout.h5'
+
+# Output files
+OutputFolder: 'CNN_Output_WithFiltering_MCDropout/'
+OutputSuffix: 'Pred_IRTPNet_Tiles1x1_WithFiltering0.0_MCDropout'
+
+# Data parameters
+NbImageLayers: 124
+NbCorrLayers: 120
+TileSize: 15
+AdjacentTilesDim: 1 # 1 for 1x1, 3 for 3x3, 5 for 5x5 adjacent tiles
+
+# Neural network parameters
+# Model - FC layers
+dict_fc_features:
+  Phase1: [2048,512,256,64]
+  Phase2: [128,64,32]
+# Batch size
+bs: 5000
+
+# MC Dropout
+MCDropout: True
+MCPasses: 40

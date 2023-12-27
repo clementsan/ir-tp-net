@@ -4,11 +4,12 @@ CSVFile_train: './Example_CSV/Data_Example_train.csv'
 CSVFile_val: './Example_CSV/Data_Example_val.csv'
 
 # Output files
-ModelName: './pytorch_Model2_Tiles1x1_uniform_lr1e-3.h5'
-LossName: './Loss_Model2_Tiles1x1_uniform_lr1e-3.png'
+ModelName: './pytorch_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.20.h5'
+LossName: './Loss_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.20.png'
 
 # Data parameters
-NbImageLayers: 122
+NbImageLayers: 124
+NbCorrLayers: 120
 TileSize: 15
 AdjacentTilesDim: 1 # 1 for 1x1, 3 for 3x3, 5 for 5x5 adjacent tiles
 
@@ -16,6 +17,10 @@ AdjacentTilesDim: 1 # 1 for 1x1, 3 for 3x3, 5 for 5x5 adjacent tiles
 num_workers: 6
 samples_per_volume: 1000
 queue_length: 6000 # samples_per_volume * num_workers
+
+# Data filtering parameters
+DataFiltering: True
+ConfidenceThreshold: 0.20
 
 # Neural network parameters
 # Model - FC layers

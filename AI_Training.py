@@ -16,7 +16,7 @@ import yaml
 import argparse
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -72,6 +72,7 @@ def main(args=None):
 	loss_filename = config_file['LossName']
 
 	nb_image_layers = config_file['NbImageLayers']
+	nb_corr_layers = config_file['NbCorrLayers']
 	tile_size = config_file['TileSize']
 	adjacent_tiles_dim = config_file['AdjacentTilesDim']
 	
@@ -79,6 +80,9 @@ def main(args=None):
 	samples_per_volume = config_file['samples_per_volume']
 	queue_length = config_file['queue_length']
 	
+	data_filtering = config_file['DataFiltering']
+	confidence_threshold = config_file['ConfidenceThreshold']
+
 	dict_fc_features = config_file['dict_fc_features']
 	bs = config_file['bs']
 	lr = config_file['lr']
@@ -112,12 +116,12 @@ def main(args=None):
 	if args.verbose:
 		print('\n--- Quality control: TIOSubject Info ---')
 		MyTIOSubject = TIOSubjects_dataset_train[0]
-		print('MySubject: ',MyTIOSubject)
-		print('MySubject.shape: ',MyTIOSubject.shape)
-		print('MySubject.spacing: ',MyTIOSubject.spacing)
-		print('MySubject.spatial_shape: ',MyTIOSubject.spatial_shape)
-		print('MySubject.spatial_shape.type: ',type(MyTIOSubject.spatial_shape))
-		print('MySubject history: ',MyTIOSubject.get_composed_history())
+		print('MySubject: ', MyTIOSubject)
+		print('MySubject.shape: ', MyTIOSubject.shape)
+		print('MySubject.spacing: ', MyTIOSubject.spacing)
+		print('MySubject.spatial_shape: ', MyTIOSubject.spatial_shape)
+		print('MySubject.spatial_shape.type: ', type(MyTIOSubject.spatial_shape))
+		print('MySubject history: ', MyTIOSubject.get_composed_history())
 	# ------------------
 
 	
@@ -179,8 +183,8 @@ def main(args=None):
 		samples_per_volume = samples_per_volume,
 		sampler = sampler_train,
 		num_workers = num_workers,
-		shuffle_subjects = True,
-		shuffle_patches = True,
+		shuffle_subjects = True, 
+		shuffle_patches = True, 
 	)
 	patches_queue_test = tio.Queue(
 		subjects_dataset = TIOSubjects_dataset_test,
@@ -202,7 +206,7 @@ def main(args=None):
 	patches_loader_test = DataLoader(
 		patches_queue_test,
 		batch_size = bs,
-		shuffle = True,
+		shuffle = False,
 		num_workers = 0,  # this must be 0
 	)
 
@@ -223,16 +227,14 @@ def main(args=None):
 	inputs = patches_batch['Combined'][tio.DATA]
 	locations = patches_batch[tio.LOCATION]
 
-	# Variable initialization needed for TensorBoard
-	input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,nb_image_layers,tile_size,adjacent_tiles_dim)
-	if args.verbose:
-		print('inputs.shape: ', inputs.shape)
-		print('input1_tiles.shape: ', input1_tiles.shape)
-		print('input2_tiles_real.shape: ', input2_tiles_real.shape)
-		print('GroundTruth_real.shape: ', GroundTruth_real.shape)
-		print('location.shape: ', locations.shape)
-		# print('location[10]: ', locations[:10])
 
+	# Variable initialization needed for TensorBoard
+	input_Corr_tiles, input_TargetDisp_tiles_real, GroundTruth_real = dataset.prepare_data_withfiltering(inputs, nb_image_layers, nb_corr_layers, tile_size, adjacent_tiles_dim, data_filtering, confidence_threshold)
+	if args.verbose:
+		print('\ninput_Corr_tiles.shape: ', input_Corr_tiles.shape)
+		print('input_TargetDisp_tiles_real.shape: ', input_TargetDisp_tiles_real.shape)
+		print('GroundTruth_real.shape: ', GroundTruth_real.shape)
+	
 
 	######################################################################
 	# Neural network - training 
@@ -244,10 +246,10 @@ def main(args=None):
 	# ----------------------
 	# Create model
 	print('\n--- Creating neural network architecture ---')
-	model_ft = Model(writer, nb_image_layers, tile_size, adjacent_tiles_dim, model_filename, dict_fc_features, loss_filename)
+	model_ft = Model(writer, nb_image_layers, nb_corr_layers, tile_size, adjacent_tiles_dim, model_filename, dict_fc_features, loss_filename, data_filtering, confidence_threshold)
 
 	# Tensorboard - add graph
-	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])
+	writer.add_graph(model_ft.model, [input_Corr_tiles.to(model_ft.device), input_TargetDisp_tiles_real.to(model_ft.device)])
 	writer.close()
 
 
@@ -256,10 +258,10 @@ def main(args=None):
 	print('\n--- DNN training ---')
 	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr, nb_epochs=nb_epochs)
 	
-	# # ----------------------
-	# # Evaluate on validation data
-	# print('\n--- DNN testing ---')
-	# model_ft.test_model(dataloaders=patches_loader_dict)
+	# ----------------------
+	# Evaluate on validation data
+	print('\n--- DNN testing ---')
+	model_ft.test_model(dataloaders=patches_loader_dict)
 
 	# plt.ioff()
 	# plt.show()

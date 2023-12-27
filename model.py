@@ -22,17 +22,20 @@ import utils
 import dataset 
 
 class Model(object):
-	def __init__(self, writer, nb_image_layers, tile_size, adjacent_tiles_dim, model_name, dict_fc_features, loss_name):
+	def __init__(self, writer, nb_image_layers, nb_corr_layers, tile_size, adjacent_tiles_dim, model_name, dict_fc_features, loss_name, data_filtering, confidence_threshold):
 
 		self.writer = writer
 		self.nb_image_layers = nb_image_layers
+		self.nb_corr_layers = nb_corr_layers
 		self.tile_size = tile_size
 		self.adjacent_tiles_dim = adjacent_tiles_dim
-		self.InputDepth = self.nb_image_layers - 2
+		self.InputDepth = self.nb_corr_layers
 		# Model name - for saving
 		self.model_name = model_name
 		self.dict_fc_features = dict_fc_features
 		self.loss_name = loss_name
+		self.data_filtering = data_filtering
+		self.confidence_threshold = confidence_threshold
 
 		# Criterion MSE -> loss RMSE
 		self.criterion = nn.MSELoss()
@@ -77,6 +80,8 @@ class Model(object):
 		val_loss = []
 		#train_acc = []
 		#val_acc = []
+		train_PercentFiltering = []
+		val_PercentFiltering = []
 
 		for epoch in range(nb_epochs):
 			print('-' * 10)
@@ -92,21 +97,36 @@ class Model(object):
 					self.model.eval()   # Set model to evaluate mode
 
 				running_loss = 0.0
+				running_patch_size = [] 
 				#running_corrects = 0
 
 				# Iterate over data.
 				#for inputs1, inputs2, GroundTruth in dataloaders[phase]:
 				for patch_idx, patches_batch in enumerate(dataloaders[phase]):
-					# print('\t patch_idx: ', patch_idx)
+					#print('\t patch_idx: ', patch_idx)
 					inputs = patches_batch['Combined'][tio.DATA]
+					locations = patches_batch[tio.LOCATION]
 
-					#print('\t\t Preparing data...')
-					input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,self.nb_image_layers,self.tile_size,self.adjacent_tiles_dim)
-					#print('\t\t Preparing data - done -')
+					inputs = inputs.to(self.device)
+					# locations = locations.to(self.device)
+
+					# Data filtering: exclude patches based on DispLMA and confidence maps
+					# if self.data_filtering:
+					# 	inputs_filtered, locations_filtered = dataset.data_filtering(inputs, locations, self.confidence_threshold)
+					# else:
+					# 	inputs_filtered, locations_filtered = inputs, locations
+
+					# #print('\t\t Preparing data...')
+					# input_Corr_tiles, input_TargetDisp_tiles_real, GroundTruth_real, Confidence_real, DispLMA_real = dataset.prepare_data(inputs_filtered, self.nb_image_layers, self.nb_corr_layers, self.tile_size, self.adjacent_tiles_dim)
+					# #print('\t\t Preparing data - done -')
 					
-					input1_tiles = input1_tiles.to(self.device)
-					input2_tiles_real = input2_tiles_real.to(self.device)
-					GroundTruth_real = GroundTruth_real.to(self.device)
+					input_Corr_tiles, input_TargetDisp_tiles_real, GroundTruth_real = dataset.prepare_data_withfiltering(inputs, self.nb_image_layers, self.nb_corr_layers, self.tile_size, self.adjacent_tiles_dim, self.data_filtering, self.confidence_threshold)
+					
+
+
+					#input_Corr_tiles = input_Corr_tiles.to(self.device)
+					#input_TargetDisp_tiles_real = input_TargetDisp_tiles_real.to(self.device)
+					#GroundTruth_real = GroundTruth_real.to(self.device)
 					# Reducing last dimension to compute loss
 					GroundTruth_real = torch.squeeze(GroundTruth_real, dim=2)
 					
@@ -118,7 +138,7 @@ class Model(object):
 					with torch.set_grad_enabled(phase == 'train'):
 						#print('\t\t DNN - forward...')
 						# Provide two inputs to model
-						outputs = self.model(input1_tiles, input2_tiles_real)
+						outputs = self.model(input_Corr_tiles, input_TargetDisp_tiles_real)
 						#print('\t\t DNN - computing loss...')
 						loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))
 						
@@ -131,28 +151,38 @@ class Model(object):
 					
 					# statistics
 					#print('\t running_loss...')
-					running_loss += loss.item() * input1_tiles.size(0)
+					running_loss += loss.item() * input_Corr_tiles.size(0)
+					running_patch_size.append(input_Corr_tiles.size(0))
+					#print('\t\t patch_size: ', input_Corr_tiles.size(0))
 					#print('\t running_loss - done -')
 					#running_corrects += torch.sum(preds == labels.data)
 					
 
-				epoch_loss = running_loss / len(dataloaders[phase].dataset) 
+				if self.data_filtering:
+					epoch_loss = running_loss / sum(running_patch_size)
+				else:
+					epoch_loss = running_loss / len(dataloaders[phase].dataset) 
 				#epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset) 
+				PercentFiltering = sum(running_patch_size) / len(dataloaders[phase].dataset)
 
 				curr_lr = optimizer.param_groups[0]['lr']
 				print('{} Loss: {:.4f} Lr: {:.6f}'.format(
 					phase, epoch_loss, curr_lr))
-
+				print('{} Data Filtering: {:.4f}'.format(
+					phase, PercentFiltering))
+				
 
 				# Append values for plots
 				if phase == 'train':
 					train_loss.append(epoch_loss)
 					#train_acc.append(epoch_acc)
 					self.writer.add_scalar('Loss/train', epoch_loss, epoch)
+					train_PercentFiltering.append(PercentFiltering)
 				else:
 					val_loss.append(epoch_loss)
 					#val_acc.append(epoch_acc)
 					self.writer.add_scalar('Loss/val', epoch_loss, epoch)
+					val_PercentFiltering.append(PercentFiltering)
 
 				# deep copy the model
 				#if phase == 'val' and epoch_acc >= best_acc:
@@ -166,8 +196,13 @@ class Model(object):
 				time_epoch = time.time() - time_beginepoch
 				print('--- {} epoch in {:.2f}s---'.format(phase, time_epoch))
 
+		print('-' * 10)
+		print('Best val loss: {:.4f}'.format(best_loss))
+		print('Average data filtering - train: {:.4f}'.format(sum(train_PercentFiltering) / nb_epochs))
+		print('Average data filtering - val: {:.4f}'.format(sum(val_PercentFiltering) / nb_epochs))
+
 		time_elapsed = time.time() - since
-		print('Training complete in {:.0f}m {:.0f}s'.format(
+		print('\nTraining complete in {:.0f}m {:.0f}s'.format(
 			time_elapsed // 60, time_elapsed % 60))
 		#print('Best val Acc: {:4f}'.format(best_acc))
 
@@ -196,6 +231,7 @@ class Model(object):
 		total_labels = []
 		total_preds = []
 		running_loss = 0.0
+		running_patch_size = [] 
 
 		with torch.no_grad():
 			#for i, (inputs1, inputs2, GroundTruth) in enumerate(dataloaders['val']):
@@ -204,31 +240,34 @@ class Model(object):
 				inputs = patches_batch['Combined'][tio.DATA]
 
 				#print('\t\t Preparing data...')
-				input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs, self.nb_image_layers, self.tile_size, self.adjacent_tiles_dim)
+				input_Corr_tiles, input_TargetDisp_tiles_real, GroundTruth_real = dataset.prepare_data_withfiltering(inputs, self.nb_image_layers, self.nb_corr_layers, self.tile_size, self.adjacent_tiles_dim, self.data_filtering, self.confidence_threshold)
 				#print('\t\t Preparing data - done -')
 
 				#print("DataLoader iteration: %d" % i)
-				input1_tiles = input1_tiles.to(self.device)
-				input2_tiles_real = input2_tiles_real.to(self.device)
+				input_Corr_tiles = input_Corr_tiles.to(self.device)
+				input_TargetDisp_tiles_real = input_TargetDisp_tiles_real.to(self.device)
 				GroundTruth_real = GroundTruth_real.to(self.device)
 				# Reducing last dimension to compute loss
 				GroundTruth_real = torch.squeeze(GroundTruth_real, dim=2)
 						
-				outputs = self.model(input1_tiles, input2_tiles_real)
+				outputs = self.model(input_Corr_tiles, input_TargetDisp_tiles_real)
 
 				loss = torch.sqrt(self.criterion(outputs, GroundTruth_real))
 
 				# statistics
-				running_loss += loss.item() * input1_tiles.size(0)
-
-			total_loss = running_loss / len(dataloaders['val'].dataset)
-
+				running_loss += loss.item() * input_Corr_tiles.size(0)
+				running_patch_size.append(input_Corr_tiles.size(0))
+			
+			if self.data_filtering:
+				total_loss = running_loss / sum(running_patch_size)
+			else:
+				total_loss = running_loss / len(dataloaders['val'].dataset)
+			PercentFiltering = sum(running_patch_size) / len(dataloaders['val'].dataset)
 
 		# Total loss
-		print("len(dataloaders['val'].dataset)",len(dataloaders['val'].dataset))
-		print("len(dataloaders['val'])",len(dataloaders['val']))
-		print('Loss: ', total_loss)
-
+		print('Validation Loss: {:.4f}'.format(total_loss))
+		print('Validation Data Filtering: {:.4f}'.format(PercentFiltering))
+				
 		self.model.train(mode=was_training)
 
 

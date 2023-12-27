@@ -1,14 +1,15 @@
 ---
 # Input files
 CSVFile: './Example_CSV/Data_Example_val.csv'
-ModelName: './pytorch_Model2_Tiles1x1_uniform_lr1e-3.h5'
+ModelName: './pytorch_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.20.h5'
 
 # Output files
-OutputFolder: 'DNN_Output/'
-OutputSuffix: 'Pred_Model2_Tiles1x1_uniform'
+OutputFolder: 'DNN_Output_WithFiltering/'
+OutputSuffix: 'Pred_Model2_Tiles1x1_uniform_WithFiltering0.20'
 
 # Data parameters
-NbImageLayers: 122
+NbImageLayers: 124
+NbCorrLayers: 120
 TileSize: 15
 AdjacentTilesDim: 1 # 1 for 1x1, 3 for 3x3, 5 for 5x5 adjacent tiles
 

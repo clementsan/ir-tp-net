@@ -4,7 +4,7 @@ import torchio as tio
 import torch
 import numpy as np 
 
-# Generate list of tio subjects from CSV file
+# Generate list of torchIO subjects from CSV file
 def GenerateTIOSubjectsList(CSVFile):
 
 	df = pd.read_csv(CSVFile, sep=',')
@@ -40,59 +40,99 @@ def roi_split(t_roi, tile_size, adjacent_tiles_dim):
 
 
 # Prepare data as multiple inputs to network (tensors)
-def prepare_data(t_input, nb_image_layers, tile_size, adjacent_tiles_dim):
-	t_input1 = t_input[:,:,:,:,0:nb_image_layers-2]
-	t_input2 = t_input[:,:,:,:,-2]
-	t_GroundTruth = t_input[:,:,:,:,-1]
+# Perform data filtering if enabled, using Confidence and DispLMA maps
+def prepare_data_withfiltering(t_input, nb_image_layers, nb_corr_layers, tile_size, adjacent_tiles_dim, is_filtering=0, confidence_threshold=0.0):
+	t_input_Corr = t_input[:,:,:,:,0:nb_corr_layers]
+	t_input_TargetDisp = t_input[:,:,:,:,-4]
+	t_GroundTruth = t_input[:,:,:,:,-3]
+	t_Confidence = t_input[:,:,:,:,-2]
+	t_DispLMA = t_input[:,:,:,:,-1]
 	
 	# print('t_input.type: ', t_input.type())
 	# # torch.Size([2000, 1, 45, 45, 122])
 	# print('t_input.shape: ', t_input.shape)
-	# print('t_input1.shape: ', t_input1.shape)
-	# print('t_input2.shape: ', t_input2.shape)
+	# print('t_input_Corr.shape: ', t_input_Corr.shape)
+	# print('t_input_TargetDisp.shape: ', t_input_TargetDisp.shape)
 	# print('t_GroundTruth.shape: ', t_GroundTruth.shape)
 
 	# Generate tiles when needed
 	if (adjacent_tiles_dim == 1):
-		t_input1_tiles = t_input1
-		t_input2_tiles = t_input2
+		t_input_Corr_tiles = t_input_Corr
+		t_input_TargetDisp_tiles = t_input_TargetDisp
 		t_GroundTruth_tiles = t_GroundTruth
+		t_Confidence_tiles = t_Confidence
+		t_DispLMA_tiles = t_DispLMA
 	else:
 		# Split t_input into neighboring tiles
-		t_input1_tiles = roi_split(t_input1, tile_size, adjacent_tiles_dim)
+		t_input_Corr_tiles = roi_split(t_input_Corr, tile_size, adjacent_tiles_dim)
 		# # torch.Size([2000, 9, 15, 15, 120])
-		# print('t_input1_tiles.shape: ', t_input1_tiles.shape)
+		# print('t_input_Corr_tiles.shape: ', t_input_Corr_tiles.shape)
 
-		t_input2_tiles = roi_split(t_input2, tile_size, adjacent_tiles_dim)
-		# print('t_input2_tiles.shape: ', t_input2_tiles.shape)
+		t_input_TargetDisp_tiles = roi_split(t_input_TargetDisp, tile_size, adjacent_tiles_dim)
+		# print('t_input_TargetDisp_tiles.shape: ', t_input_TargetDisp_tiles.shape)
 		# # torch.Size([2000, 9, 15, 15])
 		t_GroundTruth_tiles = roi_split(t_GroundTruth, tile_size, adjacent_tiles_dim)
+		t_Confidence_tiles = roi_split(t_Confidence, tile_size, adjacent_tiles_dim)
+		t_DispLMA_tiles = roi_split(t_DispLMA, tile_size, adjacent_tiles_dim)
 
-	# Generate input2_tiles_real, t_GroundTruth_tiles_real, scaling back to 62x78 pixels
-	t_input2_tiles_real = t_input2_tiles[:,:,::tile_size,::tile_size]
+
+	# Generate input_TargetDisp_tiles_real, t_GroundTruth_tiles_real, scaling back to 62x78 pixels
+	t_input_TargetDisp_tiles_real = t_input_TargetDisp_tiles[:,:,::tile_size,::tile_size]
 	t_GroundTruth_tiles_real = t_GroundTruth_tiles[:,:,::tile_size,::tile_size]
+	t_Confidence_tiles_real = t_Confidence_tiles[:,:,::tile_size,::tile_size]
+	t_DispLMA_tiles_real = t_DispLMA_tiles[:,:,::tile_size,::tile_size]
+	
 	# # torch.Size([2000, 9, 1, 1])
-	# print('t_input2_tiles_real.shape: ', t_input2_tiles_real.shape)
-		
-	# Generate t_GroundTruth_real, scaling back to 62x78 pixels
+	# print('\nt_input_TargetDisp_tiles_real.shape: ', t_input_TargetDisp_tiles_real.shape)
+	# print('t_GroundTruth_tiles_real.shape: ', t_GroundTruth_tiles_real.shape)
+	# print('t_Confidence_tiles_real.shape: ', t_Confidence_tiles_real.shape)
+	# print('t_DispLMA_tiles_real.shape: ', t_DispLMA_tiles_real.shape)
+
+
+	# - - - - - - - - 
+	# Data filtering
+	# print('Data filtering...')
+	if is_filtering:
+		t_DispLMA_tiles_real_Mask = ~torch.isnan(t_DispLMA_tiles_real)
+		t_Confidence_tiles_real_Mask = torch.where(t_Confidence_tiles_real >= confidence_threshold, 1, 0)
+		t_Mask = torch.logical_and(t_DispLMA_tiles_real_Mask, t_Confidence_tiles_real_Mask)
+		t_Mask = torch.squeeze(t_Mask)
+		if (adjacent_tiles_dim != 1):
+			t_Mask = torch.all(t_Mask, axis=1)
+		# print('t_Mask.shape: ', t_Mask.shape)
+		# print('t_Mask[:20]: ', t_Mask[:20,...])
+
+		t_input_Corr_tiles_filtered = t_input_Corr_tiles[t_Mask]
+		t_input_TargetDisp_tiles_real_filtered = t_input_TargetDisp_tiles_real[t_Mask]
+		t_GroundTruth_tiles_real_filtered = t_GroundTruth_tiles_real[t_Mask]
+		# print('t_input_Corr_tiles_filtered.shape: ', t_input_Corr_tiles_filtered.shape)
+		# print('t_input_TargetDisp_tiles_real_filtered.shape: ', t_input_TargetDisp_tiles_real_filtered.shape)
+	else:
+		t_input_Corr_tiles_filtered = t_input_Corr_tiles
+		t_input_TargetDisp_tiles_real_filtered = t_input_TargetDisp_tiles_real
+		t_GroundTruth_tiles_real_filtered = t_GroundTruth_tiles_real		
+
+	# Define center tile for GroundTruth and TargetDisp maps
 	if (adjacent_tiles_dim == 3):
 		IndexCenterTile = 4
 	elif (adjacent_tiles_dim == 5):
 		IndexCenterTile = 12
 	else:
 		IndexCenterTile = 0
-	t_GroundTruth_real_center = t_GroundTruth_tiles_real[:,IndexCenterTile,...]
-	t_input2_real_center = t_input2_tiles_real[:,IndexCenterTile,...]
-
+	t_input_TargetDisp_real_filtered_center = t_input_TargetDisp_tiles_real_filtered[:,IndexCenterTile,...]
+	t_GroundTruth_real_filtered_center = t_GroundTruth_tiles_real_filtered[:,IndexCenterTile,...]
+	
 	# print('t_GroundTruth_tiles.shape: ', t_GroundTruth_tiles.shape)
 	# print('t_GroundTruth_tiles_real.shape: ', t_GroundTruth_tiles_real.shape)
-	# print('t_GroundTruth_real_center.shape: ', t_GroundTruth_real_center.shape)
+	# print('t_GroundTruth_tiles_real_filtered.shape: ', t_GroundTruth_tiles_real_filtered.shape)
+	# print('t_GroundTruth_real_filtered_center.shape: ', t_GroundTruth_real_filtered_center.shape)
 
-	# print('t_input2_tiles.shape: ', t_input2_tiles.shape)
-	# print('t_input2_tiles_real.shape: ', t_input2_tiles_real.shape)
-	# print('t_input2_real_center.shape: ', t_input2_real_center.shape)
+	# print('t_input_TargetDisp_tiles.shape: ', t_input_TargetDisp_tiles.shape)
+	# print('t_input_TargetDisp_tiles_real.shape: ', t_input_TargetDisp_tiles_real.shape)
+	# print('t_input_TargetDisp_tiles_real_filtered.shape: ', t_input_TargetDisp_tiles_real_filtered.shape)
+	# print('t_input_TargetDisp_real_filtered_center.shape: ', t_input_TargetDisp_real_filtered_center.shape)
 
-	return t_input1_tiles, t_input2_real_center, t_GroundTruth_real_center
+	return t_input_Corr_tiles_filtered, t_input_TargetDisp_real_filtered_center, t_GroundTruth_real_filtered_center
 
 # Initialize TorchIO GridSampler variables
 # Generate patch_overlap based on adjacent_tiles_dim

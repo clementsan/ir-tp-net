@@ -6,7 +6,7 @@ import argparse
 import time 
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 
 import torch
@@ -63,6 +63,7 @@ def main(args=None):
 	output_suffix = config_file['OutputSuffix']
 
 	nb_image_layers = config_file['NbImageLayers']
+	nb_corr_layers = config_file['NbCorrLayers']
 	
 	tile_size = config_file['TileSize']
 	adjacent_tiles_dim = config_file['AdjacentTilesDim']
@@ -89,7 +90,7 @@ def main(args=None):
 	InputFile_Shape = TIOSubjectFirst['Combined'].shape
 	NbTiles_H = InputFile_Shape[1] // tile_size
 	NbTiles_W = InputFile_Shape[2] // tile_size
-	input_depth = nb_image_layers -2 
+	input_depth = nb_corr_layers 
 
 	if args.verbose:
 		print('InputFile_Shape: ', InputFile_Shape)
@@ -155,7 +156,7 @@ def main(args=None):
 				#print('\t\t Preparing data...')
 				inputs = patches_batch['Combined'][tio.DATA]
 				# print('\t\t inputs shape: ', inputs.shape)
-				input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,nb_image_layers,tile_size, adjacent_tiles_dim)
+				input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data_withfiltering(inputs, nb_image_layers, nb_corr_layers, tile_size, adjacent_tiles_dim)
 				#print('\t\t Preparing data - done -')
 
 				input1_tiles = input1_tiles.to(device)

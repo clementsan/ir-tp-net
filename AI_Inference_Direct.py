@@ -14,6 +14,7 @@ import imageio
 
 from network import *
 import utils
+import dataset 
 
 # --------------------
 # Model - FC layers
@@ -23,7 +24,7 @@ dict_fc_features = {
 	'Phase2': [128,64,32],
 }
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 # --------------------
 
 def arg_parser():
@@ -73,7 +74,8 @@ def main(args=None):
 	NbTiles_H = InputFile_Shape[1] // TileSize
 	NbTiles_W = InputFile_Shape[2] // TileSize
 	NbImageLayers = InputFile_Shape[3]
-	InputDepth = NbImageLayers -2
+	NbCorrLayers = NbImageLayers -4
+	InputDepth = NbCorrLayers
 	print('InputFile_Shape: ', InputFile_Shape)
 	print('NbTiles_H: ', NbTiles_H)
 	print('NbTiles_W: ', NbTiles_W)
@@ -118,7 +120,7 @@ def main(args=None):
 			#print('\t\t Preparing data...')
 			inputs = patches_batch['Combined'][tio.DATA]
 			print('\t\t inputs shape: ', inputs.shape)
-			input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data(inputs,NbImageLayers,TileSize, AdjacentTilesDim)
+			input1_tiles, input2_tiles_real, GroundTruth_real = dataset.prepare_data_withfiltering(inputs, NbImageLayers, NbCorrLayers, TileSize, AdjacentTilesDim)
 			#print('\t\t Preparing data - done -')
 
 			input1_tiles = input1_tiles.to(device)

@@ -19,6 +19,7 @@ import time
 import sys
 import os
 import copy
+import yaml
 
 from dataset import CustomImageDataset, CustomImageDatasetTIO
 from torch.utils.data import DataLoader
@@ -37,13 +38,14 @@ from network import *
 # Input files
 CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
+Env = 'uniform_lr1e-3_AdamW_wd0.3'
 
 # Data parameters
 AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
 AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
-ModelName = './pytorch_model2_Tiles' + AdjacentGrid + '.h5'
-LossName = './Loss_Model2_Tiles' + AdjacentGrid + '.png'
+ModelName = './pytorch_Model2_Tiles' + AdjacentGrid + '_' + Env + '.h5'
+LossName = './Loss_Model2_Tiles' + AdjacentGrid + '_' + Env + '.png'
 
 # Data sampling parameters
 num_workers = 6
@@ -79,18 +81,11 @@ def main():
 
 
 	######################################################################
-	# Load Data
+	# Load parameter file
+
 	# ---------
-
-	# Data augmentation and normalization for training
-	# Just normalization for validation
-	# Is normalization needed?
-	#normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225])
-
-
-
-	# ------------------
 	since = time.time()
+
 
 	print('\n--- Generating tio dataset... ---')
 
@@ -305,7 +300,6 @@ def main():
 	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])
 	writer.close()
 
-
 	# # ----------------------
 	# # Train and evaluate
 	print("\n")
@@ -313,8 +307,8 @@ def main():
 	print("Training...")
 	model_ft.train_model(dataloaders=patches_loader_dict, lr=lr, nb_epochs=nb_epochs)
 	
-	# # ----------------------
-	# # Evaluate on validation data
+	# ----------------------
+	# Evaluate on validation data
 	# model_ft.test_model(dataloaders=patches_loader_dict)
 
 	# plt.ioff()

@@ -65,7 +65,7 @@ class Model(object):
 
 		# Observe that all parameters are being optimized
 		#optimizer = optim.SGD(self.model.parameters(), lr=lr, momentum=0.9)
-		optimizer = optim.Adam(self.model.parameters(), lr=lr, betas=(0.9, 0.999))
+		optimizer = optim.AdamW(self.model.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=0.3)
 
 		# Decay LR by a factor of 0.1 every 7 epochs
 		#scheduler = lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)

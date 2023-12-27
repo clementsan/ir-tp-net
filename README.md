@@ -22,13 +22,13 @@ General libraries being used:
 
 ## Execution
 
-  2.1 DNN training using configuration file
+### DNN training using configuration file
 
 Command line:
 > python3 AI_Training.py --config AI_Training_Config.yaml
  
  
-  2.2 DNN inference using configuration file
+### DNN inference using configuration file
 
 Command line:
  > python3 AI_Inference_CSV.py --config AI_Inference_Config.yaml --verbose

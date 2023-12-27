@@ -16,7 +16,7 @@ import yaml
 import argparse
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import torch
 from torch.utils.tensorboard import SummaryWriter

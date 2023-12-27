@@ -34,7 +34,7 @@ class MySubNetworkPhase1(nn.Module):
 		#self.drop3 = nn.Dropout(p=0.25)
 
 		self.fc4 = nn.Linear(self.list_fc_features[2], self.list_fc_features[3])
-		self.BN4 = torch.nn.BatchNorm1d(self.list_fc_features[3])
+		#self.BN4 = torch.nn.BatchNorm1d(self.list_fc_features[3])
 		#self.drop4 = nn.Dropout(p=0.25)
 
 	def forward(self, x1):
@@ -56,9 +56,9 @@ class MySubNetworkPhase1(nn.Module):
 		#x = self.drop3(x)
 
 		x = self.fc4(x)
-		x = F.relu(x)
-		out = self.BN4(x)
-		#out = self.drop3(out)
+		out = F.relu(x)
+		#out = self.BN4(out)
+		#out = self.drop4(out)
 
 		return out
 
@@ -74,13 +74,16 @@ class MySubNetworkPhase2(nn.Module):
 		#list_nbfeatures = [128,64,32]
 		self.list_fc_features = list_fc_features
 
+		self.BN0 = torch.nn.BatchNorm1d(self.fc_inputfeatures)
+		self.drop0 = nn.Dropout(p=0.25)
+
 		self.fc1 = nn.Linear(self.fc_inputfeatures, self.list_fc_features[0])
 		self.BN1 = torch.nn.BatchNorm1d(self.list_fc_features[0])
-		#self.drop1 = nn.Dropout(p=0.25)
+		self.drop1 = nn.Dropout(p=0.25)
 
 		self.fc2 = nn.Linear(self.list_fc_features[0], self.list_fc_features[1])
 		self.BN2 = torch.nn.BatchNorm1d(self.list_fc_features[1])
-		#self.drop2 = nn.Dropout(p=0.25)
+		self.drop2 = nn.Dropout(p=0.25)
 
 		self.fc3 = nn.Linear(self.list_fc_features[1], self.list_fc_features[2])
 		self.BN3 = torch.nn.BatchNorm1d(self.list_fc_features[2])
@@ -92,15 +95,18 @@ class MySubNetworkPhase2(nn.Module):
 
 	def forward(self, x, x2):
 
+		x = self.BN0(x)
+		x = self.drop0(x)
+
 		x = self.fc1(x)
 		x = F.relu(x)
 		x = self.BN1(x)
-		#x = self.drop1(x)
+		x = self.drop1(x)
 
 		x = self.fc2(x)
 		x = F.relu(x)
 		x = self.BN2(x)
-		#x = self.drop2(x)
+		x = self.drop2(x)
 
 		x = self.fc3(x)
 		x = F.relu(x)

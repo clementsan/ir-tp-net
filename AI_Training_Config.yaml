@@ -4,8 +4,8 @@ CSVFile_train: './Example_CSV/Data_Example_train.csv'
 CSVFile_val: './Example_CSV/Data_Example_val.csv'
 
 # Output files
-ModelName: './pytorch_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.20.h5'
-LossName: './Loss_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.20.png'
+ModelName: './pytorch_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.0_Dropout.h5'
+LossName: './Loss_Model2_Tiles1x1_uniform_lr1e-3_WithFiltering0.0_Dropout.png'
 
 # Data parameters
 NbImageLayers: 124
@@ -20,7 +20,7 @@ queue_length: 6000 # samples_per_volume * num_workers
 
 # Data filtering parameters
 DataFiltering: True
-ConfidenceThreshold: 0.20
+ConfidenceThreshold: 0.0
 
 # Neural network parameters
 # Model - FC layers

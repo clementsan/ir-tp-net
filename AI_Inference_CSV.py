@@ -6,7 +6,7 @@ import argparse
 import time 
 
 # Device for CUDA 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 import torch

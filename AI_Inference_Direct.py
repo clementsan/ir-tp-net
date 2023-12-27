@@ -14,7 +14,7 @@ import imageio
 
 from network import *
 import utils
-import dataset 
+import dataset
 
 # --------------------
 # Model - FC layers
@@ -24,7 +24,7 @@ dict_fc_features = {
 	'Phase2': [128,64,32],
 }
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 # --------------------
 
 def arg_parser():

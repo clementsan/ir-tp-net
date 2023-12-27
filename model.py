@@ -55,7 +55,9 @@ class Model(object):
 		# Attach to device
 		self.model = self.model.to(self.device)
 		
-
+	def apply_dropout(m):
+		if type(m) == nn.Dropout():
+			m.train()
 
 	# Need to udpate: step1 vs step2
 	def train_model(self, dataloaders, lr, nb_epochs=25):

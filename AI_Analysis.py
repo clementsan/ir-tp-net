@@ -14,6 +14,7 @@ import pandas as pd
 import torchvision
 from torchvision import datasets, transforms
 from torch.utils.tensorboard import SummaryWriter
+from torchinfo import summary
 import matplotlib.pyplot as plt
 import time
 import sys
@@ -37,13 +38,15 @@ from network import *
 # Input files
 CSVFile_train = './Example_CSV/Data_Example_train.csv'
 CSVFile_val = './Example_CSV/Data_Example_val.csv'
+OutSuffix = 'uniform_lr1e-3'
 
 # Data parameters
 AdjacentTilesDim = 1 # for 3x3, or 5x5 adjacent tiles
 TileSize = 15
 AdjacentGrid = str(AdjacentTilesDim) + 'x' + str(AdjacentTilesDim)
-ModelName = './pytorch_model2_Tiles' + AdjacentGrid + '.h5'
-LossName = './Loss_Model2_Tiles' + AdjacentGrid + '.png'
+BaseName = 'Model5_Tiles' + AdjacentGrid + '_' + OutSuffix
+ModelName = './pytorch_' + BaseName + '.h5'
+LossName = './Loss_' + BaseName + '.png'
 
 # Data sampling parameters
 num_workers = 6
@@ -54,7 +57,7 @@ queue_length = samples_per_volume * num_workers
 # Model - FC layers
 dict_fc_features = {
 	'Phase1': [2048,512,256,64],
-	'Phase2': [128,64,32],
+	'Phase2': [128,64,32,1],
 }
 # Batch size
 #bs = round(2000/(AdjacentTilesDim*AdjacentTilesDim))
@@ -237,7 +240,8 @@ def main():
 	# Visualize input data
 
 	# default `log_dir` is "runs" - we'll be more specific here
-	writer = SummaryWriter('tensorboard/MyNetwork')
+	Tensorboard_Folder = 'tensorboard/' + BaseName
+	writer = SummaryWriter(Tensorboard_Folder)
 
 	# # Get a batch of training data
 	#inputs1, inputs2, GroundTruth = next(iter(dataloaders_dict1['train']))
@@ -300,6 +304,9 @@ def main():
 	# ----------------------
 	# Create model
 	model_ft = Model(writer, NbImageLayers, TileSize, AdjacentTilesDim, ModelName, dict_fc_features, LossName)
+
+	# Model summary
+	summary(model_ft.model, input_data=[input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])
 
 	# Tensorboard - add graph
 	writer.add_graph(model_ft.model, [input1_tiles.to(model_ft.device), input2_tiles_real.to(model_ft.device)])

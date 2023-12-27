@@ -149,11 +149,11 @@ class Model(object):
 				if phase == 'train':
 					train_loss.append(epoch_loss)
 					#train_acc.append(epoch_acc)
-					self.writer.add_scalar('Loss/train', epoch_loss, epoch)
+					self.writer.add_scalars('Loss',{'train': epoch_loss}, epoch)
 				else:
 					val_loss.append(epoch_loss)
 					#val_acc.append(epoch_acc)
-					self.writer.add_scalar('Loss/val', epoch_loss, epoch)
+					self.writer.add_scalars('Loss',{'val': epoch_loss}, epoch)
 
 				# deep copy the model
 				#if phase == 'val' and epoch_acc >= best_acc:

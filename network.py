@@ -92,7 +92,7 @@ class MySubNetworkPhase2(nn.Module):
 		self.BN3 = torch.nn.BatchNorm1d(self.list_fc_features[2])
 		#self.drop3 = nn.Dropout(p=0.25)
 
-		self.fc4 = nn.Linear(self.list_fc_features[2], 1)
+		self.fc4 = nn.Linear(self.list_fc_features[2], self.list_fc_features[3])
 
 		self.flatten2 = nn.Flatten()
 

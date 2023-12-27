@@ -1,0 +1,9 @@
+
+# - - - - - - - - -
+# Inference on real validation data - CSV file
+
+# Environment 1
+
+python3 AI_Inference_CSV.py --config ./Config_Files/AI_Inference_Config_Tiles1x1.yaml --verbose
+
+

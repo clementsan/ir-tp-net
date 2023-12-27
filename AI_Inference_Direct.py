@@ -5,12 +5,17 @@ import sys
 import argparse
 import time 
 
+# Device for CUDA 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
 import torchio as tio  
 import imageio
+import math 
 
 from network import *
 import utils
@@ -23,8 +28,9 @@ dict_fc_features = {
 	'Phase1': [2048,512,256,64],
 	'Phase2': [128,64,32],
 }
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# MC Dropout
+mc_dropout = True
+mc_passes = 50
 # --------------------
 
 def arg_parser():
@@ -43,8 +49,17 @@ def arg_parser():
 						  help='adjacent tiles dim (e.g. 3, 5)')
 	options.add_argument('--bs', type=int, default=5000,
 						  help='Batch size (default 5000)')
+	options.add_argument('--output_median', type=str,
+						  help='Image output - median for MCDropout (2D TIFF file)')
+	options.add_argument('--output_cv', type=str,
+						  help='Image output - Coefficient of Variation for MCDropout (2D TIFF file)')
 	return parser
 
+
+def apply_dropout(m):
+	if m.__class__.__name__.startswith('Dropout'):
+		print('\t\t Enabling MC dropout!')
+		m.train()
 
 #MAIN
 def main(args=None):
@@ -52,10 +67,11 @@ def main(args=None):
 	InputFile = args.input
 	ModelName = args.network
 	OutputFile = args.output
+	OutputFile_median = args.output_median
+	OutputFile_CV = args.output_cv
 	TileSize = args.tile_size
 	AdjacentTilesDim = args.adjacent_tiles_dim
 	bs = args.bs
-
 
 	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -102,13 +118,16 @@ def main(args=None):
 
 	patch_loader = torch.utils.data.DataLoader(grid_sampler, batch_size=bs)
 	aggregator = tio.data.GridAggregator(grid_sampler, overlap_mode = 'average')
-
+	
 	print('\nLoading DNN model...')
 	model = MyParallelNetwork(InputDepth, TileSize, AdjacentTilesDim, dict_fc_features)
 	model.load_state_dict(torch.load(ModelName))
-	#print(model)
+	print(model)
 	model.to(device)
 	model.eval()
+	if mc_dropout:
+		print('\t MC Dropout')
+		model.apply(apply_dropout)
 
 	print('\nPatch-based inference...')
 	since2 = time.time()
@@ -125,59 +144,108 @@ def main(args=None):
 
 			input1_tiles = input1_tiles.to(device)
 			input2_tiles_real = input2_tiles_real.to(device)
-			GroundTruth_real = GroundTruth_real.to(device)
+			#GroundTruth_real = GroundTruth_real.to(device)
 			# Reducing last dimension to compute loss
 			#GroundTruth_real = torch.squeeze(GroundTruth_real, dim=2)
 
 			print('\t\t input1_tiles shape: ', input1_tiles.shape)
 			print('\t\t input2_tiles_real shape:', input2_tiles_real.shape)
-			print('\t\t GroundTruth_real shape:', GroundTruth_real.shape)
+			
+			if mc_dropout:
+				# Perform multiple inference (mc_passes)
+				outputs_all = torch.empty(size=(mc_passes, input1_tiles.shape[0])).to(device)
+				for i in range(0, mc_passes):			
+					outputs = model(input1_tiles, input2_tiles_real)
+					outputs_all[i] = torch.squeeze(outputs)
 
-			outputs = model(input1_tiles, input2_tiles_real)
-			print('\t\t outputs shape: ',outputs.shape)
-			print('\t\t outputs device', outputs.device)
+				# Compute mean, std, CV (coefficient of variation), SE (standard error)
+				outputs_mean = torch.mean(outputs_all,0)
+				outputs_median = torch.median(outputs_all,0)[0]
+				outputs_std = torch.std(outputs_all,0)
+				outputs_cv = torch.div(outputs_std, torch.abs(outputs_mean))
+				# outputs_se = torch.div(outputs_std, math.sqrt(mc_passes))
+				outputs_combined = torch.stack((outputs_mean, outputs_median, outputs_cv), dim=1)
+				
+				print('\t\t outputs shape: ',outputs.shape)
+				print('\t\t outputs device', outputs.device)
+				print('\t\t outputs_all shape: ', outputs_all.shape)
+				print('\t\t outputs_all device', outputs_all.device)
+				print('\t\t outputs_mean shape: ', outputs_mean.shape)
+				print('\t\t outputs_median shape: ', outputs_median.shape)
+				print('\t\t outputs_median type: ', outputs_median.type())
+				print('\t\t outputs_combined shape: ', outputs_combined.shape)
+
+				print('\t\t outputs_mean[:20]',outputs_mean[:20])
+				print('\t\t outputs_median[:20]',outputs_median[:20])
+				print('\t\t outputs_std[:20]',outputs_std[:20])
+				print('\t\t outputs_cv[:20]',outputs_cv[:20])
+			else:
+				outputs_combined = model(input1_tiles, input2_tiles_real)
+			
+			print('\t\t outputs_combined device', outputs_combined.device)
+			print('\t\t outputs_combined shape: ', outputs_combined.shape)
 
 			# Reshape outputs to match location dimensions
-			outputs_reshape = torch.reshape(outputs,[outputs.shape[0],1,1,1,1])
-			print('\t\t outputs_reshape shape: ',outputs_reshape.shape)
-			print('\t\t outputs_reshape device', outputs_reshape.device)
-
+			outputs_combined_reshape = torch.reshape(outputs_combined,[outputs_combined.shape[0],outputs_combined.shape[1],1,1,1])
+			print('\t\t outputs_combined_reshape shape: ', outputs_combined_reshape.shape)
+			
 			input_location = patches_batch[tio.LOCATION]
 			print('\t\t input_location shape: ', input_location.shape)
-			print('\t\t input_location device', input_location.device)
 			print('\t\t input_location type: ', input_location.dtype)
-			print('\t\t input_location: ', input_location)
+			print('\t\t input_location[:20]: ', input_location[:20])
 
 			# Reshape input_location to prediction_location, to fit output image size (78,62,1)
 			pred_location = dataset.prediction_patch_location(input_location, TileSize, AdjacentTilesDim)
 			print('\t\t pred_location shape: ', pred_location.shape)
-			print('\t\t pred_location: ', pred_location)
+			print('\t\t pred_location[:20]: ', pred_location[:20])
 
 			# Add batch with location to TorchIO aggregator
-			aggregator.add_batch(outputs_reshape, pred_location)
+			aggregator.add_batch(outputs_combined_reshape, pred_location)
 
-	# output_tensor shape [1170, 930, 122]
-	output_tensor = aggregator.get_output_tensor()
-	print('output_tensor type: ', output_tensor.dtype)
-	print('output_tensor device', output_tensor.device)
-	print('output_tensor shape: ', output_tensor.shape)
+	# output_tensor shape [3, 1170, 930, 124]
+	output_tensor_combined = aggregator.get_output_tensor()
+	print('output_tensor_combined type: ', output_tensor_combined.dtype)
+	print('output_tensor_combined shape: ', output_tensor_combined.shape)
 
-	# Extract real information of interest [78,62]
-	output_tensor_real = output_tensor[0,:NbTiles_H,:NbTiles_W,0]
-	print('output_tensor_real shape: ', output_tensor_real.shape)
+	# Extract real information of interest [3, 78,62]
+	output_tensor_combined_real = output_tensor_combined[:,:NbTiles_H,:NbTiles_W,0]
+	print('output_tensor_combined_real shape: ', output_tensor_combined_real.shape)
 
-	output_np = output_tensor_real.numpy().squeeze()
+	output_combined_np = output_tensor_combined_real.numpy().squeeze()
+	print('output_combined_np type', output_combined_np.dtype)
+	print('output_combined_np shape', output_combined_np.shape)
 
-	print('output_np type', output_np.dtype)
-	print('output_np shape', output_np.shape)
+	if mc_dropout:
+		output_mean_np = output_combined_np[0,...]
+		output_median_np = output_combined_np[1,...]
+		output_cv_np = output_combined_np[2,...]
+		
+		imageio_output_mean = np.moveaxis(output_mean_np, 0,1)
+		imageio_output_median = np.moveaxis(output_median_np, 0,1)
+		imageio_output_cv = np.moveaxis(output_cv_np, 0,1)
+		print('imageio_output_mean shape', imageio_output_mean.shape)
+		print('imageio_output_median shape', imageio_output_median.shape)
+		print('imageio_output_cv shape', imageio_output_cv.shape)
 
-	imageio_output = np.moveaxis(output_np, 0,1)
-	print('imageio_output shape', imageio_output.shape)
-
+	else:
+		output_np = output_combined_np
+		imageio_output = np.moveaxis(output_np, 0,1)
+		print('imageio_output shape', imageio_output.shape)
+		
+	
 	time_elapsed2 = time.time() - since2
 	
-	print('Writing output image - imageio...')
-	imageio.imwrite(OutputFile, imageio_output)
+	if mc_dropout:
+		print('Writing output mean image via imageio...')
+		imageio.imwrite(OutputFile, imageio_output_mean)
+		print('Writing output median image via imageio...')
+		imageio.imwrite(OutputFile_median, imageio_output_median)
+		print('Writing output CV image via imageio...')
+		imageio.imwrite(OutputFile_CV, imageio_output_cv)
+	else:
+		print('Writing output image via imageio...')
+		imageio.imwrite(OutputFile, imageio_output)
+		
 
 	time_elapsed3 = time.time() - since2
 	time_elapsed1 = time.time() - since1

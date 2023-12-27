@@ -79,11 +79,11 @@ class MySubNetworkPhase2(nn.Module):
 
 		self.fc1 = nn.Linear(self.fc_inputfeatures, self.list_fc_features[0])
 		self.BN1 = torch.nn.BatchNorm1d(self.list_fc_features[0])
-		self.drop1 = nn.Dropout(p=0.25)
+		self.drop1 = nn.Dropout(p=0.20)
 
 		self.fc2 = nn.Linear(self.list_fc_features[0], self.list_fc_features[1])
 		self.BN2 = torch.nn.BatchNorm1d(self.list_fc_features[1])
-		self.drop2 = nn.Dropout(p=0.25)
+		self.drop2 = nn.Dropout(p=0.10)
 
 		self.fc3 = nn.Linear(self.list_fc_features[1], self.list_fc_features[2])
 		self.BN3 = torch.nn.BatchNorm1d(self.list_fc_features[2])

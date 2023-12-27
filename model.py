@@ -36,7 +36,7 @@ class Model(object):
 		self.loss_name = loss_name
 		self.data_filtering = data_filtering
 		self.confidence_threshold = confidence_threshold
-
+		
 		# Criterion MSE -> loss RMSE
 		self.criterion = nn.MSELoss()
 		self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -46,7 +46,6 @@ class Model(object):
 
 
 	def create_model(self):
-				
 		# Dynamic network with parallel subnets (e.g. for 3x3, 5x5 neighboring tiles)
 		self.model = MyParallelNetwork(self.InputDepth, self.tile_size, self.adjacent_tiles_dim, self.dict_fc_features)
 		
@@ -55,9 +54,9 @@ class Model(object):
 		# Attach to device
 		self.model = self.model.to(self.device)
 		
-	def apply_dropout(m):
-		if type(m) == nn.Dropout():
-			m.train()
+	# def apply_dropout(self, m):
+	# 	if m.__class__.__name__.startswith('Dropout'):
+	# 		m.train()
 
 	# Need to udpate: step1 vs step2
 	def train_model(self, dataloaders, lr, nb_epochs=25):

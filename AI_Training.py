@@ -87,7 +87,6 @@ def main(args=None):
 	bs = config_file['bs']
 	lr = config_file['lr']
 	nb_epochs = config_file['nb_epochs']
-
 	# ------------------
 
 

@@ -32,10 +32,10 @@ OR
 ```
 
 General libraries being used:
-	-	python 3.9 
-	-	pillow, numpy, pandas, matplotlib 
-	-	pytorch, torchio, imageio, tensorboard
-	-	scikit-learn, yaml
+ -	python 3.9 
+ -	pillow, numpy, pandas, matplotlib 
+ -	pytorch, torchio, imageio, tensorboard
+ -	scikit-learn, yaml
 
 
 ## Execution
